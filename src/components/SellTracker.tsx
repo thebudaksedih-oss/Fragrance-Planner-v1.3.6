@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { 
   TrendingUp, 
   ShoppingBag, 
@@ -25,7 +25,8 @@ import {
   History,
   Download,
   Upload,
-  Ban
+  Ban,
+  UserCheck
 } from 'lucide-react';
 import { 
   ShopItem, 
@@ -41,6 +42,8 @@ import {
 
 import { useConfirm } from '../hooks/useConfirm';
 import { Capacitor } from '@capacitor/core';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 interface SellTrackerProps {
   shopItems: ShopItem[];
@@ -50,7 +53,7 @@ interface SellTrackerProps {
   orderBatches: OrderBatch[];
   setOrderBatches: (batches: OrderBatch[]) => void;
   inventory: InventoryItem[];
-  setInventory: (inventory: InventoryItem[]) => void;
+  setInventory: React.Dispatch<React.SetStateAction<InventoryItem[]>>;
   agents: Agent[];
   setAgents: (agents: Agent[]) => void;
   customers: CustomerContact[];
@@ -144,7 +147,7 @@ export default function SellTracker({
   };
 
   // --- Sells Records Logic ---
-  const calculateOrderTotals = (order: Partial<SaleOrder> | null) => {
+  const calculateOrderTotals = useCallback((order: Partial<SaleOrder> | null) => {
     if (!order || !order.items) return { subtotal: 0, orderDiscount: 0, total: 0, commissionAmount: 0 };
     
     let subtotal = 0;
@@ -175,7 +178,22 @@ export default function SellTracker({
     }
 
     return { subtotal, orderDiscount, total: finalTotal, commissionAmount };
-  };
+  }, [settings.currencySymbol]);
+
+  const financialSummary = useMemo(() => {
+    let totalSells = 0;
+    let totalCommission = 0;
+
+    saleOrders.forEach(order => {
+      if (order.status !== 'cancelled') {
+        const { total, commissionAmount } = calculateOrderTotals(order);
+        totalSells += total;
+        totalCommission += commissionAmount;
+      }
+    });
+
+    return { totalSells, totalCommission };
+  }, [saleOrders, calculateOrderTotals]);
 
   const handleCreateOrder = () => {
     const today = new Date();
@@ -224,6 +242,50 @@ export default function SellTracker({
   };
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const receiptRef = React.useRef<HTMLDivElement>(null);
+
+  const handleExportReceiptPDF = async () => {
+    if (!receiptRef.current || !editingOrder) return;
+    
+    try {
+      const canvas = await html2canvas(receiptRef.current, { scale: 2, backgroundColor: '#ffffff' });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      
+      const fileName = `Receipt_${editingOrder.orderNumber}.pdf`;
+
+      if (Capacitor.isNativePlatform()) {
+        const base64Data = pdf.output('datauristring').split(',')[1];
+        import('@capacitor/filesystem').then(({ Filesystem, Directory }) => {
+          Filesystem.writeFile({
+            path: `Fragrance Planner/${fileName}`,
+            data: base64Data,
+            directory: Directory.Documents,
+            recursive: true
+          }).then(() => {
+            alert(`Receipt exported to Documents/Fragrance Planner/${fileName}`);
+          }).catch((e) => {
+            console.error('Export fail', e);
+            alert('Failed to save PDF.');
+          });
+        });
+      } else {
+        pdf.save(fileName);
+      }
+    } catch (e) {
+      console.error('PDF Generation Failed', e);
+    }
+  };
 
   const handleImportOrder = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -380,89 +442,91 @@ export default function SellTracker({
   };
 
   const updateInventoryForSale = (order: SaleOrder) => {
-    const newInventory = [...inventory];
-    order.items.forEach(item => {
-      const shopItem = shopItems.find(si => si.id === item.shopItemId);
-      if (!shopItem) return;
+    setInventory((prevInventory: InventoryItem[]) => {
+      const newInventory = [...prevInventory];
+      order.items.forEach(item => {
+        const shopItem = shopItems.find(si => si.id === item.shopItemId);
+        if (!shopItem) return;
 
-      const invItemIndex = newInventory.findIndex(ii => ii.id === shopItem.inventoryItemId);
-      if (invItemIndex === -1) return;
+        const invItemIndex = newInventory.findIndex(ii => ii.id === shopItem.inventoryItemId);
+        if (invItemIndex === -1) return;
 
-      const invItem = { ...newInventory[invItemIndex] };
-      let remainingToDeduct = item.quantity;
-      const newContainers = invItem.containers.map(c => {
-        if (remainingToDeduct <= 0) return c;
-        const deduct = Math.min(c.currentAmount, remainingToDeduct);
-        remainingToDeduct -= deduct;
-        
-        const newLogs: InventoryLog[] = [
-          ...c.logs,
-          {
-            id: crypto.randomUUID(),
-            timestamp: new Date().toISOString(),
-            action: 'sale',
-            amount: -deduct,
-            unit: 'unit',
-            note: `Sale Order ${order.orderNumber}`,
-            referenceId: order.id
-          }
-        ];
+        const invItem = { ...newInventory[invItemIndex] };
+        let remainingToDeduct = item.quantity;
+        const newContainers = invItem.containers.map(c => {
+          if (remainingToDeduct <= 0) return c;
+          const deduct = Math.min(c.currentAmount, remainingToDeduct);
+          remainingToDeduct -= deduct;
+          
+          const newLogs: InventoryLog[] = [
+            ...c.logs,
+            {
+              id: crypto.randomUUID(),
+              timestamp: new Date().toISOString(),
+              action: 'sale',
+              amount: -deduct,
+              unit: 'unit',
+              note: `Sale Order ${order.orderNumber}`,
+              referenceId: order.id
+            }
+          ];
 
-        return {
-          ...c,
-          currentAmount: c.currentAmount - deduct,
-          logs: newLogs
-        };
+          return {
+            ...c,
+            currentAmount: c.currentAmount - deduct,
+            logs: newLogs
+          };
+        });
+
+        invItem.containers = newContainers;
+        invItem.totalAmount = newContainers.reduce((sum, c) => sum + c.currentAmount, 0);
+        newInventory[invItemIndex] = invItem;
       });
-
-      invItem.containers = newContainers;
-      invItem.totalAmount = newContainers.reduce((sum, c) => sum + c.currentAmount, 0);
-      newInventory[invItemIndex] = invItem;
+      return newInventory;
     });
-    setInventory(newInventory);
   };
 
   const restoreInventoryForCancelledSale = (order: SaleOrder) => {
-    const newInventory = [...inventory];
-    let inventoryModified = false;
+    setInventory((prevInventory: InventoryItem[]) => {
+      const newInventory = [...prevInventory];
+      let inventoryModified = false;
 
-    order.items.forEach(item => {
-      const shopItem = shopItems.find(si => si.id === item.shopItemId);
-      if (!shopItem) return;
+      order.items.forEach(item => {
+        const shopItem = shopItems.find(si => si.id === item.shopItemId);
+        if (!shopItem) return;
 
-      const invItemIndex = newInventory.findIndex(ii => ii.id === shopItem.inventoryItemId);
-      if (invItemIndex === -1) return;
+        const invItemIndex = newInventory.findIndex(ii => ii.id === shopItem.inventoryItemId);
+        if (invItemIndex === -1) return;
 
-      const invItem = { ...newInventory[invItemIndex] };
-      if (invItem.containers.length > 0) {
-        const targetContainer = { ...invItem.containers[0] };
-        
-        const newLogs: InventoryLog[] = [
-          ...targetContainer.logs,
-          {
-            id: crypto.randomUUID(),
-            timestamp: new Date().toISOString(),
-            action: 'manual',
-            amount: item.quantity,
-            unit: 'unit',
-            note: `Cancelled Order Return: ${order.orderNumber || ''}`,
-            referenceId: order.id
-          }
-        ];
+        const invItem = { ...newInventory[invItemIndex] };
+        if (invItem.containers.length > 0) {
+          const targetContainer = { ...invItem.containers[0] };
+          
+          const newLogs: InventoryLog[] = [
+            ...targetContainer.logs,
+            {
+              id: crypto.randomUUID(),
+              timestamp: new Date().toISOString(),
+              action: 'manual',
+              amount: item.quantity,
+              unit: 'unit',
+              note: `Cancelled Order Return: ${order.orderNumber || ''}`,
+              referenceId: order.id
+            }
+          ];
 
-        targetContainer.currentAmount += item.quantity;
-        targetContainer.logs = newLogs;
+          targetContainer.currentAmount += item.quantity;
+          targetContainer.logs = newLogs;
 
-        invItem.containers = [targetContainer, ...invItem.containers.slice(1)];
-        invItem.totalAmount += item.quantity;
-        newInventory[invItemIndex] = invItem;
-        inventoryModified = true;
-      }
+          invItem.containers = [targetContainer, ...invItem.containers.slice(1)];
+          invItem.totalAmount += item.quantity;
+          newInventory[invItemIndex] = invItem;
+          inventoryModified = true;
+        }
+      });
+
+      return inventoryModified ? newInventory : prevInventory;
     });
-
-    if (inventoryModified) {
-      setInventory(newInventory);
-    }
   };
 
   const promptChangeOrderStatus = (orderId: string, oldStatus: string, newStatus: string) => {
@@ -722,24 +786,87 @@ export default function SellTracker({
       </div>
       ) : activeSubTab === 'records' ? (
         <div className="space-y-6">
-          {activeBatchId ? (
-            <div className="space-y-6">
-               <div className="flex items-center gap-4 bg-app-card p-4 rounded-xl border border-app-border">
-                  <button onClick={() => setActiveBatchId(null)} className="p-2 text-app-muted hover:text-app-text bg-app-bg hover:bg-app-accent/10 rounded-lg transition-colors">
-                     <ArrowRight size={20} className="rotate-180" />
-                  </button>
-                  <h2 className="text-xl font-black text-app-text">
-                     {activeBatchId === 'legacy' ? 'Legacy Records' : orderBatches.find(b => b.id === activeBatchId)?.name || 'Entry Details'}
-                  </h2>
-                  <div className="ml-auto flex items-center gap-2">
-                     <button
-                        onClick={handleCreateOrder}
-                        className="flex items-center gap-2 px-6 py-2 bg-app-accent text-white rounded-xl hover:bg-app-accent-hover transition-all font-bold shadow-lg shadow-app-accent/20"
-                     >
-                        <Plus size={18} /> Add Record
-                     </button>
+          {/* Global Records Summary */}
+          {!activeBatchId && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+               <div className="bg-app-card border border-app-border rounded-2xl p-6 shadow-sm flex items-center gap-4">
+                  <div className="p-4 bg-emerald-500/10 text-emerald-500 rounded-2xl">
+                     <TrendingUp size={32} />
+                  </div>
+                  <div>
+                     <p className="text-[10px] font-black uppercase text-app-muted tracking-[0.2em] mb-1">Cumulative Sales</p>
+                     <p className="text-3xl font-black text-app-text">{settings.currencySymbol}{financialSummary.totalSells.toFixed(2)}</p>
                   </div>
                </div>
+               <div className="bg-app-card border border-app-border rounded-2xl p-6 shadow-sm flex items-center gap-4">
+                  <div className="p-4 bg-purple-500/10 text-purple-500 rounded-2xl">
+                     <UserCheck size={32} />
+                  </div>
+                  <div>
+                     <p className="text-[10px] font-black uppercase text-app-muted tracking-[0.2em] mb-1">Total Commissions</p>
+                     <p className="text-3xl font-black text-app-text">{settings.currencySymbol}{financialSummary.totalCommission.toFixed(2)}</p>
+                  </div>
+               </div>
+            </div>
+          )}
+
+          {activeBatchId ? (
+            <div className="space-y-6">
+               {(() => {
+                 const entryOrders = saleOrders.filter(o => activeBatchId === 'legacy' ? !o.batchId : o.batchId === activeBatchId);
+                 let entrySells = 0;
+                 let entryCommission = 0;
+                 
+                 entryOrders.forEach(o => {
+                   if (o.status !== 'cancelled') {
+                     const { total, commissionAmount } = calculateOrderTotals(o);
+                     entrySells += total;
+                     entryCommission += commissionAmount;
+                   }
+                 });
+
+                 return (
+                   <div className="flex flex-col gap-4">
+                      <div className="flex items-center gap-4 bg-app-card p-4 rounded-xl border border-app-border">
+                         <button onClick={() => setActiveBatchId(null)} className="p-2 text-app-muted hover:text-app-text bg-app-bg hover:bg-app-accent/10 rounded-lg transition-colors">
+                            <ArrowRight size={20} className="rotate-180" />
+                         </button>
+                         <h2 className="text-xl font-black text-app-text">
+                            {activeBatchId === 'legacy' ? 'Legacy Records' : orderBatches.find(b => b.id === activeBatchId)?.name || 'Entry Details'}
+                         </h2>
+                         <div className="ml-auto flex items-center gap-2">
+                            <button
+                               onClick={handleCreateOrder}
+                               className="flex items-center gap-2 px-6 py-2 bg-app-accent text-white rounded-xl hover:bg-app-accent-hover transition-all font-bold shadow-lg shadow-app-accent/20"
+                            >
+                               <Plus size={18} /> Add Record
+                            </button>
+                         </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-4 duration-500">
+                        <div className="bg-app-card border border-app-border rounded-2xl p-4 shadow-sm flex items-center gap-3">
+                           <div className="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg">
+                              <TrendingUp size={20} />
+                           </div>
+                           <div>
+                              <p className="text-[10px] font-black uppercase text-app-muted tracking-[0.2em]">Entry Sells</p>
+                              <p className="text-lg font-black text-app-text">{settings.currencySymbol}{entrySells.toFixed(2)}</p>
+                           </div>
+                        </div>
+                        <div className="bg-app-card border border-app-border rounded-2xl p-4 shadow-sm flex items-center gap-3">
+                           <div className="p-2 bg-purple-500/10 text-purple-500 rounded-lg">
+                              <UserCheck size={20} />
+                           </div>
+                           <div>
+                              <p className="text-[10px] font-black uppercase text-app-muted tracking-[0.2em]">Entry Commission</p>
+                              <p className="text-lg font-black text-app-text">{settings.currencySymbol}{entryCommission.toFixed(2)}</p>
+                           </div>
+                        </div>
+                      </div>
+                   </div>
+                 )
+               })()}
 
                <div className="bg-app-card rounded-2xl border border-app-border overflow-x-auto shadow-sm">
                   <table className="w-full text-left border-collapse whitespace-nowrap min-w-[700px]">
@@ -751,6 +878,7 @@ export default function SellTracker({
                           <th className="px-6 py-4">Buyer</th>
                           <th className="px-6 py-4">Agent</th>
                           <th className="px-6 py-4 text-center">Items</th>
+                          <th className="px-6 py-4 text-center text-purple-500">Commission</th>
                           <th className="px-6 py-4 text-center">Status</th>
                           <th className="px-6 py-4 text-right">Total</th>
                           <th className="px-6 py-4 text-right">Actions</th>
@@ -769,6 +897,9 @@ export default function SellTracker({
                              <td className="px-6 py-4 font-bold">{customers.find(c => c.id === order.customerId)?.name || order.customCustomerName || 'Walk-in'}</td>
                              <td className="px-6 py-4">{agents.find(a => a.id === order.agentId)?.name || 'Direct'}</td>
                              <td className="px-6 py-4 text-center">{order.items.length}</td>
+                             <td className="px-6 py-4 text-center font-bold text-purple-500">
+                                {settings.currencySymbol}{calculateOrderTotals(order).commissionAmount.toFixed(2)}
+                             </td>
                              <td className="px-6 py-4 text-center">
                                 <div className="flex items-center justify-center gap-1">
                                   <button 
@@ -1325,7 +1456,16 @@ export default function SellTracker({
                                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">{si?.capacityMl}ML</span>
                             </div>
                             <div className="text-right">
-                               <p className="text-xs font-black text-app-accent">{settings.currencySymbol}{(item.quantity * item.priceAtSale).toFixed(2)}</p>
+                               <p className="text-xs font-black text-app-accent">
+                                 {settings.currencySymbol}
+                                 {(() => {
+                                   const lineTotal = item.quantity * item.priceAtSale;
+                                   const disc = item.discountType === 'percentage' 
+                                      ? (lineTotal * (item.discountValue || 0) / 100) 
+                                      : (item.discountValue || 0);
+                                   return Math.max(0, lineTotal - disc).toFixed(2);
+                                 })()}
+                               </p>
                             </div>
                           </div>
 
@@ -1444,43 +1584,133 @@ export default function SellTracker({
               </div>
             </div>
 
-            {/* Total Section */}
+             {/* Total Section */}
             {(() => {
                 const { subtotal, orderDiscount, total, commissionAmount } = calculateOrderTotals(editingOrder);
+                
+                // Calculate item-level discount total to display
+                let itemLevelDiscountsTotal = 0;
+                editingOrder.items?.forEach(i => {
+                   const lineTotal = i.quantity * i.priceAtSale;
+                   if (i.discountValue) {
+                       itemLevelDiscountsTotal += i.discountType === 'percentage' ? (lineTotal * i.discountValue / 100) : i.discountValue;
+                   }
+                });
+                
+                const customerName = editingOrder.customCustomerName || customers.find(c => c.id === editingOrder.customerId)?.name || 'Guest / Walk-In';
 
                 return (
                   <div className="space-y-6">
-                    {/* Order Summary Breakdown */}
-                    <div className="bg-app-card border border-app-border rounded-3xl p-6 md:p-8 shadow-sm">
-                       <h3 className="text-sm font-black text-app-muted uppercase tracking-widest flex items-center gap-2 mb-6">
-                          <Receipt size={18} /> Order Summary Breakdown
-                       </h3>
-                       
-                       <div className="flex flex-wrap gap-4">
-                          <div className="flex-1 min-w-[130px] p-4 sm:p-6 bg-app-bg rounded-2xl border border-app-border flex flex-col justify-center">
-                             <p className="text-[10px] font-black uppercase text-app-muted mb-2 tracking-widest break-words">Subtotal ({settings.targetCurrency})</p>
-                             <p className="text-xl sm:text-2xl lg:text-3xl font-black text-app-text break-all">{settings.currencySymbol}{subtotal.toFixed(2)}</p>
+                    {/* Order Summary Receipt Version */}
+                    <div className="bg-app-card border border-app-border rounded-3xl p-6 shadow-sm max-w-sm mx-auto">
+                       <div ref={receiptRef} className="font-mono text-sm text-app-text p-4 bg-white">
+                          <div className="text-center mb-6">
+                            <h3 className="font-bold text-lg mb-1">FRAGRANCE PLANNER</h3>
+                            <p className="text-xs text-app-muted">Receipt / Order Breakdown</p>
                           </div>
-                          <div className="flex-1 min-w-[130px] p-4 sm:p-6 bg-emerald-500/5 rounded-2xl border border-emerald-500/10 flex flex-col justify-center">
-                             <p className="text-[10px] font-black uppercase text-emerald-500 mb-2 tracking-widest break-words">Order Disc</p>
-                             <p className="text-xl sm:text-2xl lg:text-3xl font-black text-emerald-500 break-all">-{settings.currencySymbol}{orderDiscount.toFixed(2)}</p>
+                          
+                          <div className="space-y-1 mb-6 border-b-2 border-dashed border-app-border pb-4 text-xs">
+                            <div className="flex justify-between">
+                              <span>Order #</span>
+                              <span>{editingOrder.orderNumber}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Date</span>
+                              <span>{editingOrder.date}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Customer</span>
+                              <span className="font-bold">{customerName}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Payment</span>
+                              <span>{editingOrder.paymentMethod}</span>
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-[130px] p-4 sm:p-6 bg-amber-500/5 rounded-2xl border border-amber-500/10 flex flex-col justify-center">
-                             <p className="text-[10px] font-black uppercase text-amber-500 mb-2 tracking-widest break-words">Postage</p>
-                             <p className="text-xl sm:text-2xl lg:text-3xl font-black text-amber-500 break-all">+{settings.currencySymbol}{(editingOrder.postage || 0).toFixed(2)}</p>
+
+                          <div className="space-y-3 mb-6 border-b-2 border-dashed border-app-border pb-4">
+                            <div className="flex justify-between font-bold mb-2"><span>Item</span><span>Total</span></div>
+                            
+                            {editingOrder.items?.map((item, idx) => {
+                                const itemInfo = shopItems.find(i => i.id === item.shopItemId);
+                                const lineTotal = item.quantity * item.priceAtSale;
+                                const disc = item.discountType === 'percentage' 
+                                    ? (lineTotal * (item.discountValue || 0) / 100) 
+                                    : (item.discountValue || 0);
+                                const finalLine = Math.max(0, lineTotal - disc);
+
+                                return (
+                                    <div key={idx} className="flex justify-between items-start">
+                                      <div className="flex-1 pr-4">
+                                        <div className="break-words">{itemInfo?.name || 'Item'} ({itemInfo?.capacityMl}ML)</div>
+                                        <div className="text-xs text-app-muted">{item.quantity} x {settings.currencySymbol}{item.priceAtSale.toFixed(2)}</div>
+                                      </div>
+                                      <div className="whitespace-nowrap">{settings.currencySymbol}{finalLine.toFixed(2)}</div>
+                                    </div>
+                                )
+                            })}
                           </div>
-                          {editingOrder.agentId && (
-                             <div className="flex-1 min-w-[130px] p-4 sm:p-6 bg-purple-500/5 rounded-2xl border border-purple-500/10 flex flex-col justify-center">
-                                <p className="text-[10px] font-black uppercase text-purple-500 mb-2 tracking-widest break-words">Commission</p>
-                                <p className="text-xl sm:text-2xl lg:text-3xl font-black text-purple-500 break-all">{settings.currencySymbol}{commissionAmount.toFixed(2)}</p>
-                             </div>
-                          )}
-                          <div className="flex-1 min-w-[130px] p-4 sm:p-6 bg-app-accent/10 rounded-2xl border border-app-accent/20 flex flex-col justify-center relative overflow-hidden">
-                             <div className="absolute -right-4 -bottom-4 p-3 opacity-10 text-app-accent"><DollarSign size={80} /></div>
-                             <p className="text-[10px] font-black uppercase text-app-accent mb-2 tracking-widest relative z-10 break-words">Final Amount</p>
-                             <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-app-accent relative z-10 break-all">{settings.currencySymbol}{total.toFixed(2)}</p>
+
+                          <div className="space-y-2 mb-6 border-b-2 border-dashed border-app-border pb-4 text-app-muted text-xs">
+                            <div className="flex justify-between">
+                              <span>Subtotal</span>
+                              <span>{settings.currencySymbol}{(subtotal + itemLevelDiscountsTotal).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-app-text">
+                              <span>Discount</span>
+                              <span>-{settings.currencySymbol}{(orderDiscount + itemLevelDiscountsTotal).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-app-text">
+                              <span>Postage</span>
+                              <span>+{settings.currencySymbol}{(editingOrder.postage || 0).toFixed(2)}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex justify-between font-black text-lg mb-4 text-app-text">
+                              <span>TOTAL</span>
+                              <span>{settings.currencySymbol}{total.toFixed(2)}</span>
                           </div>
                        </div>
+                       
+                       <div className="text-center mt-4">
+                         <button 
+                           onClick={handleExportReceiptPDF}
+                           className="text-xs font-bold text-app-accent hover:underline flex items-center justify-center gap-1 w-full p-2"
+                         >
+                           Export Receipt to PDF
+                         </button>
+                       </div>
+                    </div>
+                    
+                    {/* Internal Financial Breakdown */}
+                    <div className="bg-app-bg border border-app-border rounded-2xl p-4 shadow-inner max-w-sm mx-auto">
+                        <h4 className="text-[10px] font-black uppercase text-app-muted mb-3 flex items-center gap-2 tracking-widest"><TrendingUp size={12}/> Internal Revenue Report</h4>
+                        <div className="space-y-2 text-sm font-medium">
+                            <div className="flex justify-between text-app-text">
+                                <span>Gross Total</span>
+                                <span>{settings.currencySymbol}{(subtotal + itemLevelDiscountsTotal).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-emerald-500">
+                                <span>Total Discounts</span>
+                                <span>-{settings.currencySymbol}{(orderDiscount + itemLevelDiscountsTotal).toFixed(2)}</span>
+                            </div>
+                            {commissionAmount > 0 && (
+                                <div className="flex justify-between text-purple-500">
+                                    <span>Agent Commission</span>
+                                    <span>-{settings.currencySymbol}{commissionAmount.toFixed(2)}</span>
+                                </div>
+                            )}
+                            {(editingOrder.postage || 0) > 0 && (
+                                <div className="flex justify-between text-amber-500">
+                                    <span>Postage Fee (Pass-through)</span>
+                                    <span>+{settings.currencySymbol}{(editingOrder.postage || 0).toFixed(2)}</span>
+                                </div>
+                            )}
+                            <div className="border-t border-app-border pt-2 mt-2 flex justify-between font-black text-app-accent text-base">
+                                <span>Net Sales Revenue</span>
+                                <span>{settings.currencySymbol}{(subtotal - orderDiscount - commissionAmount).toFixed(2)}</span>
+                            </div>
+                        </div>
                     </div>
                     
                     {/* Separate Confirm Order UI */}

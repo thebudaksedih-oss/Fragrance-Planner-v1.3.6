@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Users, UserCircle, Briefcase, Tag, Phone, Mail, MapPin, CreditCard, TrendingUp, Plus, Edit2, Trash2, ChevronLeft, Save, X } from 'lucide-react';
+import { Users, UserCircle, Briefcase, Tag, Phone, Mail, MapPin, CreditCard, TrendingUp, Plus, Edit2, Trash2, ChevronLeft, Save, X, Share } from 'lucide-react';
 import { Agent, CustomerContact } from '../types';
 import { useConfirm } from '../hooks/useConfirm';
+import { Capacitor } from '@capacitor/core';
 
 interface AgentContactManagerProps {
   agents: Agent[];
@@ -67,13 +68,33 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
     setViewState('view');
   };
 
+  const generateAgentDisplayId = (name: string, currentAgents: Agent[]) => {
+    let maxCounter = 0;
+    currentAgents.forEach(a => {
+      if (a.displayId && a.displayId.startsWith('FGA')) {
+        const match = a.displayId.match(/^FGA(\d+)-/);
+        if (match && match[1]) {
+          const num = parseInt(match[1], 10);
+          if (num > maxCounter) {
+            maxCounter = num;
+          }
+        }
+      }
+    });
+    const nextCounter = (maxCounter + 1).toString().padStart(4, '0');
+    // Take first word of name or just up to 10 chars, uppercase
+    const cleanName = name.split(' ')[0].replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    return `FGA${nextCounter}-${cleanName}`;
+  };
+
   const saveAgent = () => {
     if (!editingAgent || !editingAgent.name) return;
     const exists = agents.find(a => a.id === editingAgent.id);
     if (exists) {
       setAgents(agents.map(a => a.id === editingAgent.id ? editingAgent : a));
     } else {
-      setAgents([...agents, editingAgent]);
+      const displayId = generateAgentDisplayId(editingAgent.name, agents);
+      setAgents([...agents, { ...editingAgent, displayId }]);
     }
     setViewState('list');
     setEditingAgent(null);
@@ -137,6 +158,44 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
     }
   };
 
+  const handleExportAid = () => {
+    if (!selectedAgent) return;
+    
+    const aidData = {
+      type: 'fgs_agent_identity',
+      agentId: selectedAgent.id,
+      displayId: selectedAgent.displayId,
+      name: selectedAgent.name,
+      defaultCommission: selectedAgent.defaultCommission || 0
+    };
+    
+    const jsonString = JSON.stringify(aidData, null, 2);
+    const fileName = `Agent_${selectedAgent.name.replace(/\s+/g, '_')}.aid`;
+
+    if (Capacitor.isNativePlatform()) {
+      import('@capacitor/filesystem').then(({ Filesystem, Directory, Encoding }) => {
+        Filesystem.writeFile({
+          path: `Fragrance Planner/${fileName}`,
+          data: jsonString,
+          directory: Directory.Documents,
+          encoding: Encoding.UTF8,
+          recursive: true
+        }).then(() => {
+          alert(`Agent Identity Link exported to Documents/Fragrance Planner/${fileName}`);
+        }).catch((e) => {
+          console.error('Export fail', e);
+          alert('Failed to drop .aid file. Please check permissions.');
+        });
+      });
+    } else {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
+      const a = document.createElement('a');
+      a.href = dataStr;
+      a.download = fileName;
+      a.click();
+    }
+  };
+
   if (viewState === 'view') {
     if (activeTab === 'agents' && selectedAgent) {
       return (
@@ -155,6 +214,13 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
               </h2>
             </div>
             <div className="flex gap-2">
+              <button
+                onClick={handleExportAid}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 text-emerald-500 rounded-lg hover:bg-emerald-500/20 transition-colors font-medium"
+              >
+                <Share size={18} />
+                Export .aid
+              </button>
               <button
                 onClick={() => {
                   setEditingAgent(selectedAgent);
@@ -181,17 +247,27 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
                 <div className="h-24 w-24 rounded-full bg-app-accent/10 flex items-center justify-center text-app-accent font-bold text-4xl mx-auto mb-4">
                   {selectedAgent.name.charAt(0).toUpperCase()}
                 </div>
-                <h3 className="text-xl font-bold text-app-text flex items-center justify-center gap-2">
-                  {selectedAgent.name}
-                  {selectedAgent.gender && (
-                    <span className="text-xs px-2 py-0.5 bg-app-bg text-app-muted rounded-full border border-app-border font-medium">
-                      {selectedAgent.gender}
-                    </span>
+                <h3 className="text-xl font-bold text-app-text flex flex-col items-center justify-center gap-1">
+                  <div className="flex items-center gap-2">
+                    {selectedAgent.name}
+                    {selectedAgent.gender && (
+                      <span className="text-xs px-2 py-0.5 bg-app-bg text-app-muted rounded-full border border-app-border font-medium">
+                        {selectedAgent.gender}
+                      </span>
+                    )}
+                  </div>
+                  {selectedAgent.displayId && (
+                    <span className="text-sm font-mono text-emerald-500 font-bold">{selectedAgent.displayId}</span>
                   )}
                 </h3>
                 <p className="text-app-muted text-sm mt-1 flex items-center justify-center gap-1">
                   <MapPin size={14} /> {selectedAgent.location || 'No location set'}
                 </p>
+                {selectedAgent.defaultCommission !== undefined && (
+                  <div className="mt-4 inline-block px-3 py-1 bg-emerald-500/10 text-emerald-500 font-bold rounded-lg border border-emerald-500/20">
+                    {selectedAgent.defaultCommission}% Commission
+                  </div>
+                )}
               </div>
 
               <div className="bg-app-card rounded-xl p-6 border border-app-border shadow-sm space-y-4">
@@ -446,6 +522,18 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
                     onChange={(e) => setEditingAgent({ ...editingAgent, name: e.target.value })}
                     className="w-full px-3 py-2 bg-app-bg border border-app-border rounded-md text-app-text focus:ring-app-accent focus:border-app-accent"
                     placeholder="e.g., John Doe"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-app-text mb-1">Default Commission (%)</label>
+                  <input
+                    type="number"
+                    value={editingAgent.defaultCommission || ''}
+                    onChange={(e) => setEditingAgent({ ...editingAgent, defaultCommission: Number(e.target.value) })}
+                    className="w-full px-3 py-2 bg-app-bg border border-app-border rounded-md text-app-text focus:ring-app-accent focus:border-app-accent"
+                    placeholder="e.g., 5"
+                    min="0"
+                    step="0.1"
                   />
                 </div>
                 <div>
@@ -836,7 +924,10 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
                     </div>
                     <div>
                       <h4 className="font-bold text-app-text">{agent.name}</h4>
-                      <div className="text-xs text-app-muted flex items-center gap-1">
+                      {agent.displayId && (
+                        <div className="text-xs font-mono font-bold text-emerald-500">{agent.displayId}</div>
+                      )}
+                      <div className="text-xs text-app-muted flex items-center gap-1 mt-0.5">
                         <MapPin size={12} /> {agent.location || 'No location'}
                       </div>
                     </div>

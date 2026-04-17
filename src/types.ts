@@ -279,6 +279,7 @@ export type InventoryItem = {
 
 export interface Agent {
   id: string;
+  displayId?: string;
   name: string;
   contactNumber: string;
   bankAccountNumber: string;
@@ -287,6 +288,7 @@ export interface Agent {
   createdAt: string;
   notes?: string;
   gender?: 'Male' | 'Female';
+  defaultCommission?: number;
 }
 
 export interface CustomerContact {
