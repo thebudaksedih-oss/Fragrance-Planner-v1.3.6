@@ -40,6 +40,7 @@ import {
 } from '../types';
 
 import { useConfirm } from '../hooks/useConfirm';
+import { Capacitor } from '@capacitor/core';
 
 interface SellTrackerProps {
   shopItems: ShopItem[];
@@ -80,6 +81,11 @@ export default function SellTracker({
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
   const [isEditingBatch, setIsEditingBatch] = useState(false);
   const [editingBatchData, setEditingBatchData] = useState<Partial<OrderBatch> | null>(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportSelection, setExportSelection] = useState({
+    shopItems: true,
+    stock: true
+  });
   
   const { confirm, ConfirmModal } = useConfirm();
   const [suppressStatusPrompt, setSuppressStatusPrompt] = useState(false);
@@ -139,7 +145,7 @@ export default function SellTracker({
 
   // --- Sells Records Logic ---
   const calculateOrderTotals = (order: Partial<SaleOrder> | null) => {
-    if (!order || !order.items) return { subtotal: 0, orderDiscount: 0, total: 0 };
+    if (!order || !order.items) return { subtotal: 0, orderDiscount: 0, total: 0, commissionAmount: 0 };
     
     let subtotal = 0;
     order.items.forEach(i => {
@@ -158,9 +164,17 @@ export default function SellTracker({
             : order.discountValue;
     }
     
-    const finalTotal = Math.max(0, subtotal - orderDiscount) + (order.postage || 0);
+    const subtotalAfterDiscount = Math.max(0, subtotal - orderDiscount);
+    const finalTotal = subtotalAfterDiscount + (order.postage || 0);
 
-    return { subtotal, orderDiscount, total: finalTotal };
+    let commissionAmount = 0;
+    if (order.agentId && order.commissionValue) {
+       commissionAmount = order.commissionType === 'percentage'
+          ? (subtotalAfterDiscount * order.commissionValue / 100)
+          : order.commissionValue;
+    }
+
+    return { subtotal, orderDiscount, total: finalTotal, commissionAmount };
   };
 
   const handleCreateOrder = () => {
@@ -172,6 +186,9 @@ export default function SellTracker({
 
     const todaysOrders = saleOrders.filter(o => o.orderNumber?.startsWith(prefix));
     const nextNum = todaysOrders.length + 1;
+    
+    // Data Inheritance Fix: Get latest sale order for inheritance
+    const latestOrder = saleOrders.length > 0 ? saleOrders[0] : null;
 
     setEditingOrder({
       id: crypto.randomUUID(),
@@ -182,7 +199,10 @@ export default function SellTracker({
       status: 'completed',
       discountValue: 0,
       discountType: 'fixed',
-      paymentMethod: 'QR'
+      paymentMethod: 'QR',
+      agentId: latestOrder?.agentId,
+      commissionValue: latestOrder?.commissionValue,
+      commissionType: latestOrder?.commissionType || 'percentage'
     });
     setIsCreatingOrder(true);
   };
@@ -212,7 +232,28 @@ export default function SellTracker({
       reader.onload = (e) => {
         try {
           const imported = JSON.parse(e.target?.result as string);
-          if (imported.type === 'fgs_backup' && imported.batch && imported.orders) {
+          
+          if (imported.type === 'fgs_agent_data') {
+             let message = 'Agent data imported successfully!\n';
+             if (imported.shopItems) {
+                setShopItems(imported.shopItems);
+                message += '- Item Shop Data updated\n';
+             }
+             if (imported.inventory) {
+                const newInventory = [...inventory];
+                imported.inventory.forEach((importedInv: any) => {
+                   const existingIdx = newInventory.findIndex(i => i.id === importedInv.id);
+                   if (existingIdx > -1) {
+                      newInventory[existingIdx] = importedInv;
+                   } else {
+                      newInventory.push(importedInv);
+                   }
+                });
+                setInventory(newInventory);
+                message += '- Stock Inventory updated\n';
+             }
+             alert(message);
+          } else if (imported.type === 'fgs_backup' && imported.batch && imported.orders) {
              const newBatchId = crypto.randomUUID();
              const newBatch = { ...imported.batch, id: newBatchId, name: `${imported.batch.name} (Imported)` };
              const mappedOrders = imported.orders.map((o: any) => ({ ...o, id: crypto.randomUUID(), batchId: newBatchId }));
@@ -221,6 +262,7 @@ export default function SellTracker({
              setOrderBatches([newBatch, ...orderBatches]);
              setSaleOrders([...mappedOrders, ...saleOrders]);
              mappedOrders.forEach((mo: any) => updateInventoryForSale(mo));
+             alert('Records imported successfully!');
           } else if (imported && imported.date && imported.orderNumber) {
              // Legacy single order
              const newBatchId = crypto.randomUUID();
@@ -231,12 +273,13 @@ export default function SellTracker({
              setOrderBatches([newBatch, ...orderBatches]);
              setSaleOrders([newOrder, ...saleOrders]);
              updateInventoryForSale(newOrder); 
+             alert('Record imported successfully!');
           } else {
-             alert('Invalid order structure.');
+             alert('Invalid file structure.');
           }
         } catch (err) {
           console.error("Failed to parse order", err);
-          alert("Invalid order file (must be .fgs containing OrderBatch data).");
+          alert("Invalid order file (must be valid .fgs data).");
         }
       };
       reader.readAsText(file);
@@ -263,11 +306,31 @@ export default function SellTracker({
         batch: batchToExport,
         orders: ordersToExport
      };
-     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
-     const a = document.createElement('a');
-     a.href = dataStr;
-     a.download = `Batch_${batchToExport.name.replace(/\s+/g, '_')}.fgs`;
-     a.click();
+     const jsonString = JSON.stringify(exportData, null, 2);
+     const fileName = `Batch_${batchToExport.name.replace(/\s+/g, '_')}.fgs`;
+
+     if (Capacitor.isNativePlatform()) {
+        import('@capacitor/filesystem').then(({ Filesystem, Directory, Encoding }) => {
+           Filesystem.writeFile({
+              path: `Fragrance Planner/${fileName}`,
+              data: jsonString,
+              directory: Directory.Documents,
+              encoding: Encoding.UTF8,
+              recursive: true
+           }).then(() => {
+              alert(`Exported to Documents/Fragrance Planner/${fileName}`);
+           }).catch((e) => {
+              console.error('Export fail', e);
+              alert('Failed to export. Please check permissions.');
+           });
+        });
+     } else {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
+        const a = document.createElement('a');
+        a.href = dataStr;
+        a.download = fileName;
+        a.click();
+     }
   };
 
   const handleSaveBatch = () => {
@@ -290,8 +353,15 @@ export default function SellTracker({
   };
 
   const handleCreateEntry = () => {
+    const today = new Date();
+    const d = String(today.getDate()).padStart(2, '0');
+    const m = String(today.getMonth() + 1).padStart(2, '0');
+    const y = today.getFullYear();
+    const prefix = `${d}${m}${y}`;
+    const todaysCount = orderBatches.filter(b => b.name === `${prefix}${b.name.replace(prefix, '')}`).length;
+
     setEditingBatchData({
-      name: `Entry-${Date.now().toString().slice(-6)}`,
+      name: `${prefix}${todaysCount + 1}`,
       date: new Date().toISOString().split('T')[0]
     });
     setIsEditingBatch(true);
@@ -729,7 +799,7 @@ export default function SellTracker({
                              </td>
                              <td className="px-6 py-4 text-right font-black text-app-accent">{settings.currencySymbol}{order.totalAmount.toFixed(2)}</td>
                              <td className="px-6 py-4 text-right">
-                                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex items-center justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                    <button onClick={() => { setEditingOrder(order); setIsCreatingOrder(true); }} title="Edit Record" className="p-2 text-app-muted hover:text-emerald-500 transition-colors"><Edit2 size={16} /></button>
                                    <button onClick={() => handleDeleteOrder(order.id)} title="Delete Record" className="p-2 text-app-muted hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
                                 </div>
@@ -759,6 +829,13 @@ export default function SellTracker({
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsExportModalOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-app-bg text-emerald-500 border border-emerald-500/20 rounded-xl hover:bg-emerald-500/10 transition-all font-bold"
+                  >
+                    <Upload size={18} />
+                    <span className="hidden sm:inline">Export for Agent</span>
+                  </button>
                   <input 
                     type="file" 
                     accept=".fgs" 
@@ -770,7 +847,7 @@ export default function SellTracker({
                     onClick={() => fileInputRef.current?.click()}
                     className="flex items-center gap-2 px-4 py-2 bg-app-bg text-app-text border border-app-border rounded-xl hover:bg-app-card transition-all font-bold"
                   >
-                    <Upload size={18} />
+                    <Download size={18} />
                     <span className="hidden sm:inline">Import .fgs</span>
                   </button>
                   <button
@@ -793,7 +870,7 @@ export default function SellTracker({
                       <div className="p-3 bg-emerald-500/10 text-emerald-500 rounded-xl">
                         <Package size={24} />
                       </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <button onClick={(e) => { e.stopPropagation(); handleExportBatch(batch.id); }} className="text-app-muted hover:text-emerald-500 p-2"><Download size={18} /></button>
                         <button onClick={(e) => { e.stopPropagation(); handleDeleteBatch(batch.id); }} className="text-app-muted hover:text-red-500 p-2"><Trash2 size={18} /></button>
                       </div>
@@ -804,7 +881,7 @@ export default function SellTracker({
                          e.stopPropagation();
                          setEditingBatchData(batch);
                          setIsEditingBatch(true);
-                      }} className="text-app-muted hover:text-app-accent opacity-0 group-hover:opacity-100 transition-opacity p-1">
+                      }} className="text-app-muted hover:text-app-accent opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1">
                         <Edit2 size={14} />
                       </button>
                     </div>
@@ -823,7 +900,7 @@ export default function SellTracker({
                        <div className="p-3 bg-amber-500/10 text-amber-500 rounded-xl">
                          <History size={24} />
                        </div>
-                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                       <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                          <button onClick={(e) => { e.stopPropagation(); handleExportBatch('legacy'); }} className="text-app-muted hover:text-emerald-500 p-2"><Download size={18} /></button>
                          <button onClick={(e) => { e.stopPropagation(); handleDeleteBatch('legacy'); }} className="text-app-muted hover:text-red-500 p-2"><Trash2 size={18} /></button>
                        </div>
@@ -1112,6 +1189,31 @@ export default function SellTracker({
                         </select>
                       </div>
                    </div>
+                   
+                   {editingOrder.agentId && (
+                      <div className="mt-4 pt-4 border-t border-app-border">
+                        <label className="block text-[10px] font-black uppercase text-emerald-500 mb-2 tracking-widest flex items-center gap-2">
+                           <User size={12} /> Agent Commission
+                        </label>
+                        <div className="flex items-center gap-2 max-w-[200px]">
+                           <input
+                             type="number"
+                             value={editingOrder.commissionValue || ''}
+                             onChange={(e) => setEditingOrder({ ...editingOrder, commissionValue: Number(e.target.value) })}
+                             placeholder="0"
+                             min="0"
+                             className="w-full px-4 py-3 bg-app-card border border-app-border rounded-xl text-app-text focus:ring-2 focus:ring-app-accent outline-none font-bold"
+                           />
+                           <button 
+                             onClick={() => setEditingOrder({ ...editingOrder, commissionType: editingOrder.commissionType === 'percentage' ? 'fixed' : 'percentage' })}
+                             className="px-4 py-3 bg-app-card border border-app-border rounded-xl text-app-text font-black hover:bg-app-accent/10 hover:text-app-accent transition-colors"
+                           >
+                             {editingOrder.commissionType === 'percentage' ? '%' : settings.currencySymbol}
+                           </button>
+                        </div>
+                      </div>
+                   )}
+
                    <div>
                       <label className="block text-[10px] font-black uppercase text-app-muted mb-1 tracking-widest">Order Status</label>
                       <div className="flex gap-2">
@@ -1212,7 +1314,7 @@ export default function SellTracker({
                               const tempOrder = { ...editingOrder, items: newItems };
                               setEditingOrder({ ...tempOrder, totalAmount: calculateOrderTotals(tempOrder).total });
                             }}
-                            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg opacity-100 transition-opacity"
                           >
                             <X size={14} />
                           </button>
@@ -1344,7 +1446,7 @@ export default function SellTracker({
 
             {/* Total Section */}
             {(() => {
-                const { subtotal, orderDiscount, total } = calculateOrderTotals(editingOrder);
+                const { subtotal, orderDiscount, total, commissionAmount } = calculateOrderTotals(editingOrder);
 
                 return (
                   <div className="space-y-6">
@@ -1354,23 +1456,29 @@ export default function SellTracker({
                           <Receipt size={18} /> Order Summary Breakdown
                        </h3>
                        
-                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                          <div className="p-4 sm:p-6 bg-app-bg rounded-2xl border border-app-border flex flex-col justify-center">
-                             <p className="text-[10px] font-black uppercase text-app-muted mb-2 tracking-widest">Subtotal ({settings.targetCurrency})</p>
-                             <p className="text-2xl sm:text-3xl font-black text-app-text">{settings.currencySymbol}{subtotal.toFixed(2)}</p>
+                       <div className="flex flex-wrap gap-4">
+                          <div className="flex-1 min-w-[130px] p-4 sm:p-6 bg-app-bg rounded-2xl border border-app-border flex flex-col justify-center">
+                             <p className="text-[10px] font-black uppercase text-app-muted mb-2 tracking-widest break-words">Subtotal ({settings.targetCurrency})</p>
+                             <p className="text-xl sm:text-2xl lg:text-3xl font-black text-app-text break-all">{settings.currencySymbol}{subtotal.toFixed(2)}</p>
                           </div>
-                          <div className="p-4 sm:p-6 bg-emerald-500/5 rounded-2xl border border-emerald-500/10 flex flex-col justify-center">
-                             <p className="text-[10px] font-black uppercase text-emerald-500 mb-2 tracking-widest">Order Disc</p>
-                             <p className="text-2xl sm:text-3xl font-black text-emerald-500">-{settings.currencySymbol}{orderDiscount.toFixed(2)}</p>
+                          <div className="flex-1 min-w-[130px] p-4 sm:p-6 bg-emerald-500/5 rounded-2xl border border-emerald-500/10 flex flex-col justify-center">
+                             <p className="text-[10px] font-black uppercase text-emerald-500 mb-2 tracking-widest break-words">Order Disc</p>
+                             <p className="text-xl sm:text-2xl lg:text-3xl font-black text-emerald-500 break-all">-{settings.currencySymbol}{orderDiscount.toFixed(2)}</p>
                           </div>
-                          <div className="p-4 sm:p-6 bg-amber-500/5 rounded-2xl border border-amber-500/10 flex flex-col justify-center">
-                             <p className="text-[10px] font-black uppercase text-amber-500 mb-2 tracking-widest">Postage</p>
-                             <p className="text-2xl sm:text-3xl font-black text-amber-500">+{settings.currencySymbol}{(editingOrder.postage || 0).toFixed(2)}</p>
+                          <div className="flex-1 min-w-[130px] p-4 sm:p-6 bg-amber-500/5 rounded-2xl border border-amber-500/10 flex flex-col justify-center">
+                             <p className="text-[10px] font-black uppercase text-amber-500 mb-2 tracking-widest break-words">Postage</p>
+                             <p className="text-xl sm:text-2xl lg:text-3xl font-black text-amber-500 break-all">+{settings.currencySymbol}{(editingOrder.postage || 0).toFixed(2)}</p>
                           </div>
-                          <div className="p-4 sm:p-6 bg-app-accent/10 rounded-2xl border border-app-accent/20 flex flex-col justify-center relative overflow-hidden">
+                          {editingOrder.agentId && (
+                             <div className="flex-1 min-w-[130px] p-4 sm:p-6 bg-purple-500/5 rounded-2xl border border-purple-500/10 flex flex-col justify-center">
+                                <p className="text-[10px] font-black uppercase text-purple-500 mb-2 tracking-widest break-words">Commission</p>
+                                <p className="text-xl sm:text-2xl lg:text-3xl font-black text-purple-500 break-all">{settings.currencySymbol}{commissionAmount.toFixed(2)}</p>
+                             </div>
+                          )}
+                          <div className="flex-1 min-w-[130px] p-4 sm:p-6 bg-app-accent/10 rounded-2xl border border-app-accent/20 flex flex-col justify-center relative overflow-hidden">
                              <div className="absolute -right-4 -bottom-4 p-3 opacity-10 text-app-accent"><DollarSign size={80} /></div>
-                             <p className="text-[10px] font-black uppercase text-app-accent mb-2 tracking-widest relative z-10">Final Amount</p>
-                             <p className="text-3xl sm:text-4xl font-black text-app-accent relative z-10">{settings.currencySymbol}{total.toFixed(2)}</p>
+                             <p className="text-[10px] font-black uppercase text-app-accent mb-2 tracking-widest relative z-10 break-words">Final Amount</p>
+                             <p className="text-2xl sm:text-3xl lg:text-4xl font-black text-app-accent relative z-10 break-all">{settings.currencySymbol}{total.toFixed(2)}</p>
                           </div>
                        </div>
                     </div>
@@ -1404,6 +1512,80 @@ export default function SellTracker({
                   </div>
                 );
             })()}
+          </div>
+        </div>
+      )}
+      {/* Export to Agent Modal */}
+      {isExportModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-app-card rounded-2xl shadow-2xl max-w-sm w-full p-8 border border-app-border space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-black text-app-text flex items-center gap-2">
+                 <Upload className="text-emerald-500" /> Export to Agent
+              </h2>
+              <button onClick={() => setIsExportModalOpen(false)} className="text-app-muted hover:text-app-text p-2 hover:bg-app-bg rounded-lg transition-all">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <p className="text-sm text-app-muted">Select the data you want to export to your agents. They can import this file to update their inventory and shop.</p>
+            
+            <div className="space-y-4">
+               <label className="flex items-center gap-3 p-4 bg-app-bg rounded-xl border border-app-border cursor-pointer hover:border-app-accent/50 transition-colors">
+                  <input type="checkbox" checked={exportSelection.shopItems} onChange={(e) => setExportSelection({...exportSelection, shopItems: e.target.checked})} className="rounded text-app-accent focus:ring-app-accent" />
+                  <div>
+                    <div className="font-bold text-sm text-app-text">Item Shop Data</div>
+                    <div className="text-xs text-app-muted">Prices, variations, and active items</div>
+                  </div>
+               </label>
+               <label className="flex items-center gap-3 p-4 bg-app-bg rounded-xl border border-app-border cursor-pointer hover:border-app-accent/50 transition-colors">
+                  <input type="checkbox" checked={exportSelection.stock} onChange={(e) => setExportSelection({...exportSelection, stock: e.target.checked})} className="rounded text-app-accent focus:ring-app-accent" />
+                  <div>
+                    <div className="font-bold text-sm text-app-text">Stock Data</div>
+                    <div className="text-xs text-app-muted">Available bottled fragrance quantities</div>
+                  </div>
+               </label>
+            </div>
+            
+            <button
+               onClick={() => {
+                  const exportData: any = { type: 'fgs_agent_data', timestamp: new Date().toISOString() };
+                  if (exportSelection.shopItems) exportData.shopItems = shopItems;
+                  if (exportSelection.stock) exportData.inventory = inventory.filter((i: InventoryItem) => i.itemType === 'bottled_fragrance');
+                  
+                  const jsonString = JSON.stringify(exportData, null, 2);
+                  const fileName = `AgentData_${new Date().toISOString().split('T')[0]}.fgs`;
+
+                  if (Capacitor.isNativePlatform()) {
+                     import('@capacitor/filesystem').then(({ Filesystem, Directory, Encoding }) => {
+                        Filesystem.writeFile({
+                           path: `Fragrance Planner/${fileName}`,
+                           data: jsonString,
+                           directory: Directory.Documents,
+                           encoding: Encoding.UTF8,
+                           recursive: true
+                        }).then(() => {
+                           alert(`Exported to Documents/Fragrance Planner/${fileName}`);
+                        }).catch((e) => {
+                           console.error('Export fail', e);
+                           alert('Failed to export. Please check permissions.');
+                        });
+                     });
+                  } else {
+                     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
+                     const a = document.createElement('a');
+                     a.href = dataStr;
+                     a.download = fileName;
+                     a.click();
+                  }
+
+                  setIsExportModalOpen(false);
+               }}
+               disabled={!exportSelection.shopItems && !exportSelection.stock}
+               className="w-full flex items-center justify-center gap-2 py-4 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all font-black text-lg shadow-xl shadow-emerald-500/20 disabled:opacity-50"
+            >
+               <Upload size={24} /> Export File
+            </button>
           </div>
         </div>
       )}

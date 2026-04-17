@@ -26,6 +26,9 @@ import { Agent, CustomerContact, ShopItem, SaleOrder, OrderBatch } from './types
 
 type Tab = 'formulas' | 'database' | 'calculator' | 'planner' | 'maceration' | 'materials' | 'equipment' | 'prices' | 'feedback' | 'budget' | 'bottling' | 'dilution' | 'contacts' | 'sales' | 'settings';
 
+import { Capacitor } from '@capacitor/core';
+
+// Inside App
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('formulas');
 
@@ -330,15 +333,36 @@ export default function App() {
     
     data.appSettings = appSettings;
 
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${exportFilename}.fgp`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const jsonString = JSON.stringify(data, null, 2);
+    const fileName = `${exportFilename}.fgp`;
+    
+    // Fallback for native wrapper
+    if (Capacitor.isNativePlatform()) {
+       import('@capacitor/filesystem').then(({ Filesystem, Directory, Encoding }) => {
+          Filesystem.writeFile({
+             path: `Fragrance Planner/${fileName}`,
+             data: jsonString,
+             directory: Directory.Documents,
+             encoding: Encoding.UTF8,
+             recursive: true
+          }).then(() => {
+             alert(`Exported to Documents/Fragrance Planner/${fileName}`);
+          }).catch((e) => {
+             console.error('Export fail', e);
+             alert('Failed to export. Please check permissions.');
+          });
+       });
+    } else {
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
     
     setExportModalOpen(false);
   };
@@ -697,7 +721,7 @@ export default function App() {
           })}
           <div className="mt-8 pt-8 border-t border-app-border px-4 text-center lg:text-left">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-app-muted">
-              Fragrance Planner v1.3.4
+              Fragrance Planner v1.3.8
             </p>
             <p className="text-[9px] font-bold text-app-accent/60 uppercase tracking-widest mt-1">
               Created by Sengeh Fragrance
@@ -1001,7 +1025,13 @@ export default function App() {
                   <label className="block text-sm font-medium text-app-muted">Select tabs to import</label>
                   <button 
                     onClick={() => {
-                      const allSelected = Object.values(importOptions).every(Boolean);
+                      const availableKeys = Object.keys(importOptions).filter(key => {
+                        if (key === 'budget') return !!importData.shipmentOptions || !!importData.budgetPlans;
+                        if (key === 'bottling') return !!importData.bottlingPlans;
+                        return !!importData[key];
+                      });
+                      const allSelected = availableKeys.length > 0 && availableKeys.every(key => importOptions[key as keyof typeof importOptions]);
+                      
                       setImportOptions({
                         formulas: !allSelected && !!importData.formulas,
                         fragrances: !allSelected && !!importData.fragrances,
@@ -1024,7 +1054,15 @@ export default function App() {
                     }}
                     className="text-xs text-app-accent hover:text-app-accent-hover font-medium"
                   >
-                    {Object.values(importOptions).every(Boolean) ? 'Deselect All' : 'Select All'}
+                    {(() => {
+                      const availableKeys = Object.keys(importOptions).filter(key => {
+                        if (key === 'budget') return !!importData?.shipmentOptions || !!importData?.budgetPlans;
+                        if (key === 'bottling') return !!importData?.bottlingPlans;
+                        return !!importData?.[key];
+                      });
+                      const allSelected = availableKeys.length > 0 && availableKeys.every(key => importOptions[key as keyof typeof importOptions]);
+                      return allSelected ? 'Deselect All' : 'Select All';
+                    })()}
                   </button>
                 </div>
                 <div className="space-y-2 bg-app-bg p-3 rounded-lg border border-app-border max-h-60 overflow-y-auto">

@@ -329,6 +329,8 @@ export type SaleOrder = {
   date: string;
   items: OrderItem[];
   agentId?: string; // Who sold it
+  commissionValue?: number;
+  commissionType?: 'percentage' | 'fixed';
   customerId?: string; // Who bought it (from CustomerContact)
   customCustomerName?: string; // If buyer is not in contact manager
   customCustomerPhone?: string;
