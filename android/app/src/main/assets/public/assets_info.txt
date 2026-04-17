@@ -1,0 +1,1 @@
+This folder is for static assets. Please place your "new icon.png" here and rename it to "icon.png".
