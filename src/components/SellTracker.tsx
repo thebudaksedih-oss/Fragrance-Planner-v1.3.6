@@ -85,6 +85,7 @@ export default function SellTracker({
   const [isEditingBatch, setIsEditingBatch] = useState(false);
   const [editingBatchData, setEditingBatchData] = useState<Partial<OrderBatch> | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [agentExportFileName, setAgentExportFileName] = useState('');
   const [exportSelection, setExportSelection] = useState({
     shopItems: true,
     stock: true
@@ -315,9 +316,15 @@ export default function SellTracker({
                 message += '- Stock Inventory updated\n';
              }
              alert(message);
-          } else if (imported.type === 'fgs_backup' && imported.batch && imported.orders) {
+          } else if (imported.type === 'fgs_backup' && imported.orders && Array.isArray(imported.orders)) {
              const newBatchId = crypto.randomUUID();
-             const newBatch = { ...imported.batch, id: newBatchId, name: `${imported.batch.name} (Imported)` };
+             const newBatch = { 
+               ...(imported.batch || {}), 
+               id: newBatchId, 
+               name: imported.batch ? `${imported.batch.name} (Imported)` : 'Imported Records',
+               date: imported.batch?.date || new Date().toISOString().split('T')[0],
+               orderIds: [] as string[]
+             };
              const mappedOrders = imported.orders.map((o: any) => ({ ...o, id: crypto.randomUUID(), batchId: newBatchId }));
              newBatch.orderIds = mappedOrders.map((o: any) => o.id);
              
@@ -350,7 +357,14 @@ export default function SellTracker({
     if (event.target) event.target.value = '';
   };
 
-  const handleExportBatch = async (batchId: string) => {
+  const [batchExportModalOpen, setBatchExportModalOpen] = useState(false);
+  const [batchExportFileName, setBatchExportFileName] = useState('');
+  const [batchExportTargetId, setBatchExportTargetId] = useState<string | null>(null);
+
+  const confirmExportBatch = async () => {
+     if (!batchExportTargetId) return;
+     const batchId = batchExportTargetId;
+     
      let batchToExport;
      let ordersToExport: SaleOrder[] = [];
      if (batchId === 'legacy') {
@@ -369,11 +383,11 @@ export default function SellTracker({
         orders: ordersToExport
      };
      const jsonString = JSON.stringify(exportData, null, 2);
-     const defaultName = `Batch_${batchToExport.name.replace(/\s+/g, '_')}`;
-     const userInputName = window.prompt("Enter file name for export:", defaultName);
      
-     if (!userInputName) return;
-     const fileName = userInputName.endsWith('.fgs') ? userInputName : `${userInputName}.fgs`;
+     if (!batchExportFileName) return;
+     const fileName = batchExportFileName.endsWith('.fgs') ? batchExportFileName : `${batchExportFileName}.fgs`;
+
+     setBatchExportModalOpen(false);
 
      if (Capacitor.isNativePlatform()) {
         try {
@@ -418,12 +432,26 @@ export default function SellTracker({
      }
   };
 
+  const handleExportBatch = (batchId: string) => {
+     let batchName = 'Legacy Data';
+     if (batchId !== 'legacy') {
+        const batch = orderBatches.find(b => b.id === batchId);
+        if (batch) batchName = batch.name;
+     }
+     const defaultName = `Batch_${batchName.replace(/\s+/g, '_')}`;
+     setBatchExportFileName(defaultName);
+     setBatchExportTargetId(batchId);
+     setBatchExportModalOpen(true);
+  };
+
   const downloadFileWeb = (content: string, fileName: string) => {
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(content);
       const a = document.createElement('a');
       a.href = dataStr;
       a.download = fileName;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
   };
 
   const handleSaveBatch = () => {
@@ -1776,6 +1804,41 @@ export default function SellTracker({
           </div>
         </div>
       )}
+      {/* Batch Export Modal */}
+      {batchExportModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-app-card rounded-2xl shadow-2xl max-w-sm w-full p-8 border border-app-border space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-black text-app-text flex items-center gap-2">
+                 <Download className="text-emerald-500" /> Export Entry .fgs
+              </h2>
+              <button onClick={() => setBatchExportModalOpen(false)} className="text-app-muted hover:text-app-text p-2 hover:bg-app-bg rounded-lg transition-all">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+               <div>
+                  <label className="block text-[10px] font-black text-app-muted uppercase mb-1 tracking-widest">File Name</label>
+                  <input
+                     type="text"
+                     className="w-full px-4 py-3 font-bold text-app-text bg-app-bg border border-app-border rounded-xl outline-none focus:border-app-accent"
+                     value={batchExportFileName}
+                     onChange={(e) => setBatchExportFileName(e.target.value)}
+                  />
+               </div>
+               
+               <button
+                  onClick={confirmExportBatch}
+                  className="w-full flex items-center justify-center gap-2 py-4 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all font-black text-lg shadow-xl shadow-emerald-500/20"
+               >
+                  <Download size={24} /> Export & Share
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Export to Agent Modal */}
       {isExportModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1792,6 +1855,15 @@ export default function SellTracker({
             <p className="text-sm text-app-muted">Select the data you want to export to your agents. They can import this file to update their inventory and shop.</p>
             
             <div className="space-y-4">
+               <div>
+                  <label className="block text-[10px] font-black text-app-muted uppercase mb-1 tracking-widest">File Name</label>
+                  <input
+                     type="text"
+                     className="w-full px-4 py-3 font-bold text-app-text bg-app-bg border border-app-border rounded-xl outline-none focus:border-app-accent"
+                     value={agentExportFileName}
+                     onChange={(e) => setAgentExportFileName(e.target.value)}
+                  />
+               </div>
                <label className="flex items-center gap-3 p-4 bg-app-bg rounded-xl border border-app-border cursor-pointer hover:border-app-accent/50 transition-colors">
                   <input type="checkbox" checked={exportSelection.shopItems} onChange={(e) => setExportSelection({...exportSelection, shopItems: e.target.checked})} className="rounded text-app-accent focus:ring-app-accent" />
                   <div>
@@ -1815,11 +1887,9 @@ export default function SellTracker({
                   if (exportSelection.stock) exportData.inventory = inventory.filter((i: InventoryItem) => i.itemType === 'bottled_fragrance');
                   
                   const jsonString = JSON.stringify(exportData, null, 2);
-                  const defaultName = `AgentData_${new Date().toISOString().split('T')[0]}`;
-                  const userInputName = window.prompt("Enter file name for export:", defaultName);
-                  
-                  if (!userInputName) return;
-                  const fileName = userInputName.endsWith('.fgs') ? userInputName : `${userInputName}.fgs`;
+                  const fileName = agentExportFileName.endsWith('.fgs') ? agentExportFileName : `${agentExportFileName}.fgs`;
+
+                  setIsExportModalOpen(false);
 
                   if (Capacitor.isNativePlatform()) {
                      try {

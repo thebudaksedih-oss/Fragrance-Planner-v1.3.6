@@ -158,7 +158,10 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
     }
   };
 
-  const handleExportAid = async () => {
+  const [aidExportModalOpen, setAidExportModalOpen] = useState(false);
+  const [aidExportFileName, setAidExportFileName] = useState('');
+
+  const confirmExportAid = async () => {
     if (!selectedAgent) return;
     
     const aidData = {
@@ -170,11 +173,9 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
     };
     
     const jsonString = JSON.stringify(aidData, null, 2);
-    const defaultName = `Agent_${selectedAgent.name.replace(/\s+/g, '_')}`;
-    const userInputName = window.prompt("Enter file name for export:", defaultName);
-    
-    if (!userInputName) return;
-    const fileName = userInputName.endsWith('.aid') ? userInputName : `${userInputName}.aid`;
+    const fileName = aidExportFileName.endsWith('.aid') ? aidExportFileName : `${aidExportFileName}.aid`;
+
+    setAidExportModalOpen(false);
 
     if (Capacitor.isNativePlatform()) {
       try {
@@ -219,12 +220,21 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
     }
   };
 
+  const handleExportAid = () => {
+    if (!selectedAgent) return;
+    const defaultName = `Agent_${selectedAgent.name.replace(/\s+/g, '_')}`;
+    setAidExportFileName(defaultName);
+    setAidExportModalOpen(true);
+  };
+
   const downloadFileWeb = (content: string, fileName: string) => {
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(content);
       const a = document.createElement('a');
       a.href = dataStr;
       a.download = fileName;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
   };
 
   if (viewState === 'view') {
@@ -271,6 +281,29 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
               </button>
             </div>
           </div>
+
+          {aidExportModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+              <div className="w-full max-w-sm p-6 bg-app-card border border-app-border rounded-xl">
+                <h3 className="text-lg font-bold text-app-text mb-4">Export Agent Link (.aid)</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-app-muted uppercase mb-1 tracking-widest">File Name</label>
+                    <input
+                      type="text"
+                      className="w-full px-4 py-3 font-bold text-app-text bg-app-bg border border-app-border rounded-xl outline-none focus:border-app-accent"
+                      value={aidExportFileName}
+                      onChange={(e) => setAidExportFileName(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end pt-4">
+                    <button onClick={() => setAidExportModalOpen(false)} className="px-4 py-2 font-bold text-app-muted hover:text-app-text bg-app-bg hover:bg-app-accent/10 transition-colors rounded-xl flex-1">Cancel</button>
+                    <button onClick={confirmExportAid} className="px-4 py-2 flex-1 text-white bg-app-accent hover:bg-app-accent-hover transition-colors rounded-xl font-black">Export & Share</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-1 space-y-6">
