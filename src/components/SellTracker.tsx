@@ -350,7 +350,7 @@ export default function SellTracker({
     if (event.target) event.target.value = '';
   };
 
-  const handleExportBatch = (batchId: string) => {
+  const handleExportBatch = async (batchId: string) => {
      let batchToExport;
      let ordersToExport: SaleOrder[] = [];
      if (batchId === 'legacy') {
@@ -360,7 +360,7 @@ export default function SellTracker({
      } else {
         batchToExport = orderBatches.find(b => b.id === batchId);
         if (!batchToExport) return;
-        ordersToExport = saleOrders.filter(o => batchToExport.orderIds.includes(o.id) || o.batchId === batchId);
+        ordersToExport = saleOrders.filter(o => batchToExport?.orderIds.includes(o.id) || o.batchId === batchId);
      }
 
      const exportData = {
@@ -369,30 +369,61 @@ export default function SellTracker({
         orders: ordersToExport
      };
      const jsonString = JSON.stringify(exportData, null, 2);
-     const fileName = `Batch_${batchToExport.name.replace(/\s+/g, '_')}.fgs`;
+     const defaultName = `Batch_${batchToExport.name.replace(/\s+/g, '_')}`;
+     const userInputName = window.prompt("Enter file name for export:", defaultName);
+     
+     if (!userInputName) return;
+     const fileName = userInputName.endsWith('.fgs') ? userInputName : `${userInputName}.fgs`;
 
      if (Capacitor.isNativePlatform()) {
-        import('@capacitor/filesystem').then(({ Filesystem, Directory, Encoding }) => {
-           Filesystem.writeFile({
+        try {
+           const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem');
+           const { Share } = await import('@capacitor/share');
+           
+           const result = await Filesystem.writeFile({
               path: `Fragrance Planner/${fileName}`,
               data: jsonString,
               directory: Directory.Documents,
               encoding: Encoding.UTF8,
               recursive: true
-           }).then(() => {
-              alert(`Exported to Documents/Fragrance Planner/${fileName}`);
-           }).catch((e) => {
-              console.error('Export fail', e);
-              alert('Failed to export. Please check permissions.');
            });
-        });
+
+           if (window.confirm(`File saved: Documents/Fragrance Planner/${fileName}\n\nWould you like to share this file?`)) {
+              await Share.share({
+                 title: 'Share .fgs backup',
+                 text: 'Fragrance Planner Sell Tracker Backup',
+                 url: result.uri,
+                 dialogTitle: 'Share File'
+              });
+           }
+        } catch (e) {
+           console.error('Export fail', e);
+           alert('Failed to export. Please check permissions.');
+        }
      } else {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
-        const a = document.createElement('a');
-        a.href = dataStr;
-        a.download = fileName;
-        a.click();
+        const file = new File([jsonString], fileName, { type: 'application/json' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+           try {
+              await navigator.share({
+                 files: [file],
+                 title: 'Share .fgs backup',
+                 text: 'Fragrance Planner Sell Tracker Backup'
+              });
+           } catch (e) {
+              downloadFileWeb(jsonString, fileName);
+           }
+        } else {
+           downloadFileWeb(jsonString, fileName);
+        }
      }
+  };
+
+  const downloadFileWeb = (content: string, fileName: string) => {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(content);
+      const a = document.createElement('a');
+      a.href = dataStr;
+      a.download = fileName;
+      a.click();
   };
 
   const handleSaveBatch = () => {
@@ -1778,35 +1809,58 @@ export default function SellTracker({
             </div>
             
             <button
-               onClick={() => {
+               onClick={async () => {
                   const exportData: any = { type: 'fgs_agent_data', timestamp: new Date().toISOString() };
                   if (exportSelection.shopItems) exportData.shopItems = shopItems;
                   if (exportSelection.stock) exportData.inventory = inventory.filter((i: InventoryItem) => i.itemType === 'bottled_fragrance');
                   
                   const jsonString = JSON.stringify(exportData, null, 2);
-                  const fileName = `AgentData_${new Date().toISOString().split('T')[0]}.fgs`;
+                  const defaultName = `AgentData_${new Date().toISOString().split('T')[0]}`;
+                  const userInputName = window.prompt("Enter file name for export:", defaultName);
+                  
+                  if (!userInputName) return;
+                  const fileName = userInputName.endsWith('.fgs') ? userInputName : `${userInputName}.fgs`;
 
                   if (Capacitor.isNativePlatform()) {
-                     import('@capacitor/filesystem').then(({ Filesystem, Directory, Encoding }) => {
-                        Filesystem.writeFile({
+                     try {
+                        const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem');
+                        const { Share } = await import('@capacitor/share');
+                        
+                        const result = await Filesystem.writeFile({
                            path: `Fragrance Planner/${fileName}`,
                            data: jsonString,
                            directory: Directory.Documents,
                            encoding: Encoding.UTF8,
                            recursive: true
-                        }).then(() => {
-                           alert(`Exported to Documents/Fragrance Planner/${fileName}`);
-                        }).catch((e) => {
-                           console.error('Export fail', e);
-                           alert('Failed to export. Please check permissions.');
                         });
-                     });
+                        
+                        if (window.confirm(`File saved: Documents/Fragrance Planner/${fileName}\n\nWould you like to share this file?`)) {
+                           await Share.share({
+                              title: 'Share Agent Data',
+                              text: 'Fragrance Planner Agent Data',
+                              url: result.uri,
+                              dialogTitle: 'Share File'
+                           });
+                        }
+                     } catch (e) {
+                        console.error('Export fail', e);
+                        alert('Failed to export. Please check permissions.');
+                     }
                   } else {
-                     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
-                     const a = document.createElement('a');
-                     a.href = dataStr;
-                     a.download = fileName;
-                     a.click();
+                     const file = new File([jsonString], fileName, { type: 'application/json' });
+                     if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        try {
+                           await navigator.share({
+                              files: [file],
+                              title: 'Share Agent Data',
+                              text: 'Fragrance Planner Agent Data'
+                           });
+                        } catch (e) {
+                           downloadFileWeb(jsonString, fileName);
+                        }
+                     } else {
+                        downloadFileWeb(jsonString, fileName);
+                     }
                   }
 
                   setIsExportModalOpen(false);

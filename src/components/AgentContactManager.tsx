@@ -158,7 +158,7 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
     }
   };
 
-  const handleExportAid = () => {
+  const handleExportAid = async () => {
     if (!selectedAgent) return;
     
     const aidData = {
@@ -170,30 +170,61 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
     };
     
     const jsonString = JSON.stringify(aidData, null, 2);
-    const fileName = `Agent_${selectedAgent.name.replace(/\s+/g, '_')}.aid`;
+    const defaultName = `Agent_${selectedAgent.name.replace(/\s+/g, '_')}`;
+    const userInputName = window.prompt("Enter file name for export:", defaultName);
+    
+    if (!userInputName) return;
+    const fileName = userInputName.endsWith('.aid') ? userInputName : `${userInputName}.aid`;
 
     if (Capacitor.isNativePlatform()) {
-      import('@capacitor/filesystem').then(({ Filesystem, Directory, Encoding }) => {
-        Filesystem.writeFile({
+      try {
+        const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem');
+        const { Share } = await import('@capacitor/share');
+        
+        const result = await Filesystem.writeFile({
           path: `Fragrance Planner/${fileName}`,
           data: jsonString,
           directory: Directory.Documents,
           encoding: Encoding.UTF8,
           recursive: true
-        }).then(() => {
-          alert(`Agent Identity Link exported to Documents/Fragrance Planner/${fileName}`);
-        }).catch((e) => {
-          console.error('Export fail', e);
-          alert('Failed to drop .aid file. Please check permissions.');
         });
-      });
+        
+        if (window.confirm(`File saved: Documents/Fragrance Planner/${fileName}\n\nWould you like to share this file?`)) {
+          await Share.share({
+            title: 'Share .aid file',
+            text: 'Fragrance Planner Agent Identity',
+            url: result.uri,
+            dialogTitle: 'Share File'
+          });
+        }
+      } catch (e) {
+        console.error('Export fail', e);
+        alert('Failed to save .aid file. Please check permissions.');
+      }
     } else {
-      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
+      const file = new File([jsonString], fileName, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: 'Share .aid file',
+            text: 'Fragrance Planner Agent Identity'
+          });
+        } catch (e) {
+          downloadFileWeb(jsonString, fileName);
+        }
+      } else {
+        downloadFileWeb(jsonString, fileName);
+      }
+    }
+  };
+
+  const downloadFileWeb = (content: string, fileName: string) => {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(content);
       const a = document.createElement('a');
       a.href = dataStr;
       a.download = fileName;
       a.click();
-    }
   };
 
   if (viewState === 'view') {
