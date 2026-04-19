@@ -314,20 +314,23 @@ function TagInput({
 
 // RGBInput Component
 function RGBInput({ label, value, onChange }: { label: string, value: string, onChange: (val: string) => void }) {
-  // hex to rgb
-  const r = parseInt(value.slice(1, 3), 16) || 0;
-  const g = parseInt(value.slice(3, 5), 16) || 0;
-  const b = parseInt(value.slice(5, 7), 16) || 0;
+  const [localValue, setLocalValue] = useState(value);
 
-  const handleRGBChange = (channel: 'r' | 'g' | 'b', val: number) => {
-    const clamped = Math.max(0, Math.min(255, val));
-    let nr = r, ng = g, nb = b;
-    if (channel === 'r') nr = clamped;
-    if (channel === 'g') ng = clamped;
-    if (channel === 'b') nb = clamped;
-    
-    const toHex = (n: number) => n.toString(16).padStart(2, '0');
-    onChange(`#${toHex(nr)}${toHex(ng)}${toHex(nb)}`);
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  const handleBlur = () => {
+    if (/^#[0-9A-F]{6}$/i.test(localValue)) {
+      onChange(localValue.toUpperCase());
+    } else {
+      setLocalValue(value);
+    }
+  };
+
+  const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocalValue(e.target.value.toUpperCase());
+    onChange(e.target.value.toUpperCase());
   };
 
   return (
@@ -336,25 +339,18 @@ function RGBInput({ label, value, onChange }: { label: string, value: string, on
       <div className="flex items-center gap-2">
         <input 
           type="color" 
-          value={value} 
-          onChange={(e) => onChange(e.target.value)}
-          className="w-8 h-8 rounded cursor-pointer border border-app-border bg-transparent"
+          value={/^#[0-9A-F]{6}$/i.test(localValue) ? localValue : '#000000'} 
+          onChange={handleColorChange}
+          className="w-10 h-10 rounded cursor-pointer border border-app-border bg-transparent p-1"
         />
-        <div className="flex gap-1">
-          {['r', 'g', 'b'].map((c) => (
-            <div key={c} className="flex flex-col items-center">
-              <input 
-                type="number"
-                min="0"
-                max="255"
-                value={c === 'r' ? r : c === 'g' ? g : b}
-                onChange={(e) => handleRGBChange(c as any, parseInt(e.target.value) || 0)}
-                className="w-12 px-1 py-1 text-xs border border-app-border bg-app-bg text-app-text rounded text-center focus:ring-1 focus:ring-app-accent outline-none"
-              />
-              <span className="text-[8px] uppercase text-app-muted">{c}</span>
-            </div>
-          ))}
-        </div>
+        <input 
+          type="text" 
+          value={localValue} 
+          onChange={e => setLocalValue(e.target.value)}
+          onBlur={handleBlur}
+          placeholder="#FFFFFF"
+          className="w-full px-3 py-2 text-sm bg-app-bg border border-app-border rounded-md text-app-text font-mono uppercase focus:ring-1 focus:ring-app-accent outline-none"
+        />
       </div>
     </div>
   );
@@ -813,7 +809,7 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-app-text mb-2">Perfume Type</label>
               <div className="flex flex-wrap gap-2">
-                {['Fresh', 'Summer', 'Winter', 'Gourmand', 'Floral', 'Woody', 'Aromatic', 'Oriental', 'Green', 'Fruity', 'Soapy', 'Citrus', 'Spicy', 'Aquatic', 'Leather', 'Powdery', 'Chypre', 'Musk', 'Animalic', 'Vanilla', 'Amber', 'Smoky', 'Lactonic', 'Herbal', 'Aldehydic', 'Earthy', 'Balsamic'].sort().map((type) => {
+                {['Fresh', 'Summer', 'Winter', 'Gourmand', 'Floral', 'Woody', 'Aromatic', 'Oriental', 'Green', 'Fruity', 'Soapy', 'Citrus', 'Spicy', 'Aquatic', 'Leather', 'Powdery', 'Chypre', 'Musk', 'Animalic', 'Vanilla', 'Amber', 'Smoky', 'Lactonic', 'Herbal', 'Aldehydic', 'Earthy', 'Balsamic', 'Sweet', 'Warm'].sort().map((type) => {
                   const isSelected = currentFragrance.perfumeType?.includes(type);
                   return (
                     <button
@@ -929,12 +925,12 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
     const isCustom = !!selectedFragrance.customTheme;
 
     const topStyle = isCustom ? { 
-      background: theme.isGradient ? `linear-gradient(${theme.gradientDirection || 'to right'}, ${theme.color1}, ${theme.color2})` : theme.top,
+      background: theme.isGradient ? `linear-gradient(${theme.gradientDirection || 'to bottom'}, ${theme.color1} 0%, ${theme.color1} calc(100% - 60px), ${theme.color2} calc(100% + 60px))` : theme.top,
       color: theme.text,
       borderColor: theme.border
     } : {};
     const bottomStyle = isCustom ? { 
-      backgroundColor: theme.bottom,
+      background: theme.isGradient ? `linear-gradient(${theme.gradientDirection || 'to bottom'}, ${theme.color1} -60px, ${theme.color2} 60px, ${theme.color2} 100%)` : theme.bottom,
       borderColor: theme.border
     } : {};
     const textStyle = isCustom ? { color: theme.text } : {};
@@ -1201,12 +1197,12 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
                   const isCustom = !!fragrance.customTheme;
                   const cTheme = theme as UserTheme;
                   const topStyle = isCustom ? { 
-                    background: cTheme.isGradient ? `linear-gradient(${cTheme.gradientDirection || 'to right'}, ${cTheme.color1}, ${cTheme.color2})` : theme.top,
+                    background: cTheme.isGradient ? `linear-gradient(${cTheme.gradientDirection || 'to bottom'}, ${cTheme.color1} 0%, ${cTheme.color1} calc(100% - 40px), ${cTheme.color2} calc(100% + 40px))` : theme.top,
                     color: theme.text,
                     borderColor: theme.border
                   } : {};
                   const bottomStyle = isCustom ? { 
-                    backgroundColor: theme.bottom,
+                    background: cTheme.isGradient ? `linear-gradient(${cTheme.gradientDirection || 'to bottom'}, ${cTheme.color1} -40px, ${cTheme.color2} 40px, ${cTheme.color2} 100%)` : theme.bottom,
                     borderColor: theme.border
                   } : {};
                   const textStyle = isCustom ? { color: theme.text } : {};
@@ -1366,7 +1362,7 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
                                         }}
                                         title={t.name}
                                         className={`w-8 h-8 rounded-full border-2 ${t.id === fragrance.customTheme?.id ? 'border-app-accent ring-2 ring-app-accent/30' : 'border-app-border hover:border-app-accent/50'} relative overflow-hidden transition-all`}
-                                        style={{ background: t.isGradient ? `linear-gradient(${t.gradientDirection || 'to right'}, ${t.color1}, ${t.color2})` : t.top }}
+                                        style={{ background: t.isGradient ? `linear-gradient(${t.gradientDirection || 'to bottom'}, ${t.color1} 40%, ${t.color2} 60%)` : t.top }}
                                       >
                                         {!t.isGradient && <div className="absolute bottom-0 w-full h-1/2" style={{ backgroundColor: t.bottom }}></div>}
                                       </button>
@@ -1606,12 +1602,12 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
 
                 <div className="grid grid-cols-2 gap-4">
                   <RGBInput 
-                    label={customThemeEditor.isGradient ? "Color 1 (Left)" : "Top Background"} 
+                    label={customThemeEditor.isGradient ? "Gradient Top" : "Top Background"} 
                     value={customThemeEditor.color1} 
                     onChange={(val) => setCustomThemeEditor({ ...customThemeEditor, color1: val })} 
                   />
                   <RGBInput 
-                    label={customThemeEditor.isGradient ? "Color 2 (Right)" : "Bottom Background"} 
+                    label={customThemeEditor.isGradient ? "Gradient Bottom" : "Bottom Background"} 
                     value={customThemeEditor.color2} 
                     onChange={(val) => setCustomThemeEditor({ ...customThemeEditor, color2: val })} 
                   />
@@ -1793,12 +1789,12 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
 
                     const tags = migrateToArray(frag.tags);
                     const topStyle = { 
-                      background: tempTheme.isGradient ? `linear-gradient(${tempTheme.gradientDirection || 'to right'}, ${tempTheme.color1}, ${tempTheme.color2})` : tempTheme.top,
+                      background: tempTheme.isGradient ? `linear-gradient(${tempTheme.gradientDirection || 'to right'}, ${tempTheme.color1} 0%, ${tempTheme.color1} calc(100% - 40px), ${tempTheme.color2} calc(100% + 40px))` : tempTheme.top,
                       color: tempTheme.text,
                       borderColor: tempTheme.border
                     };
                     const bottomStyle = { 
-                      backgroundColor: tempTheme.bottom,
+                      background: tempTheme.isGradient ? `linear-gradient(${tempTheme.gradientDirection || 'to right'}, ${tempTheme.color1} -40px, ${tempTheme.color2} 40px, ${tempTheme.color2} 100%)` : tempTheme.bottom,
                       borderColor: tempTheme.border
                     };
                     const tagStyle = { backgroundColor: tempTheme.tagBg, color: tempTheme.tagText, borderColor: tempTheme.border };
