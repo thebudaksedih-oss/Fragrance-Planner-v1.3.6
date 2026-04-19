@@ -207,7 +207,8 @@ export default function BudgetPlanner({
           quantity: buyQuantity,
           unitPrice: bestEntry.priceTarget,
           priceEntryId: bestEntry.id,
-          discountPercentage: 0
+          discountPercentage: 0,
+          ...({ rawRequiredAmount: neededAmount })
         });
       } else {
         newItems.push({
@@ -216,7 +217,8 @@ export default function BudgetPlanner({
           itemId: id,
           quantity: Number(neededAmount.toFixed(2)),
           unitPrice: 0,
-          discountPercentage: 0
+          discountPercentage: 0,
+          ...({ rawRequiredAmount: neededAmount })
         });
       }
     });
@@ -232,11 +234,20 @@ export default function BudgetPlanner({
       const possibleEntries = priceEntries.filter(p => {
         if (p.itemType !== 'fragrance') return false;
         if (p.itemId === id) return true;
-        if (p.customItemName?.toLowerCase() === id.toLowerCase()) return true;
+        
+        const pName = (p.customItemName || '').trim().toLowerCase();
+        if (!pName) return false;
+        
+        const idLower = id.trim().toLowerCase();
+        if (pName === idLower || pName.includes(idLower) || idLower.includes(pName)) return true;
+        
         if (fragrance) {
           if (p.itemId === fragrance.id) return true;
-          if (p.customItemName?.toLowerCase() === fragrance.name.toLowerCase()) return true;
-          if (p.customItemName?.toLowerCase() === fragrance.originalScent.toLowerCase()) return true;
+          const fName = (fragrance.name || '').trim().toLowerCase();
+          const orig = (fragrance.originalScent || '').trim().toLowerCase();
+          
+          if (fName && (pName === fName || pName.includes(fName) || fName.includes(pName))) return true;
+          if (orig && (pName === orig || pName.includes(orig) || orig.includes(pName))) return true;
         }
         return false;
       });
@@ -262,16 +273,18 @@ export default function BudgetPlanner({
           quantity: buyQuantity,
           unitPrice: bestEntry.priceTarget,
           priceEntryId: bestEntry.id,
-          discountPercentage: 0
+          discountPercentage: 0,
+          ...({ rawRequiredAmount: neededAmount })
         });
       } else {
         newItems.push({
           id: Date.now().toString() + Math.random().toString(),
           category: 'fragrance_oil',
-          itemId: id,
+          itemId: id, // this might fail to match UI, but fallback is ok
           quantity: Number(neededAmount.toFixed(2)),
           unitPrice: 0,
-          discountPercentage: 0
+          discountPercentage: 0,
+          ...({ rawRequiredAmount: neededAmount })
         });
       }
     });
@@ -427,7 +440,19 @@ export default function BudgetPlanner({
                             const pricePerUnit = entry && entry.pricingType === 'capacity' 
                               ? entry.priceTarget 
                               : (entry && entry.quantity > 0 ? entry.priceTarget / entry.quantity : 0);
-                            updateItem(item.id, { priceEntryId: entryId, unitPrice: pricePerUnit });
+                              
+                            let newQuantity = item.quantity;
+                            const rawAmount = (item as any).rawRequiredAmount;
+                            if (entry && rawAmount) {
+                              const normalizedQty = (entry.unit?.toLowerCase() === 'kg' || entry.unit?.toLowerCase() === 'l') ? (entry.quantity || 1) * 1000 : (entry.unit?.toLowerCase() === 'mg' ? (entry.quantity || 1) / 1000 : (entry.quantity || 1));
+                              let effectivePureQty = normalizedQty;
+                              if (entry.isDiluted && entry.dilutionPercentage) {
+                                effectivePureQty = normalizedQty * (entry.dilutionPercentage / 100);
+                              }
+                              newQuantity = Math.ceil(rawAmount / effectivePureQty);
+                            }
+
+                            updateItem(item.id, { priceEntryId: entryId, unitPrice: pricePerUnit, quantity: newQuantity });
                           }}
                           className="flex-1 min-w-[200px] text-sm bg-app-bg border-app-border rounded-md shadow-sm text-app-text focus:border-app-accent focus:ring-app-accent"
                         >
@@ -461,7 +486,19 @@ export default function BudgetPlanner({
                             const pricePerUnit = entry && entry.pricingType === 'capacity' 
                               ? entry.priceTarget 
                               : (entry && entry.quantity > 0 ? entry.priceTarget / entry.quantity : 0);
-                            updateItem(item.id, { priceEntryId: entryId, unitPrice: pricePerUnit });
+                              
+                            let newQuantity = item.quantity;
+                            const rawAmount = (item as any).rawRequiredAmount;
+                            if (entry && rawAmount) {
+                              const normalizedQty = (entry.unit?.toLowerCase() === 'kg' || entry.unit?.toLowerCase() === 'l') ? (entry.quantity || 1) * 1000 : (entry.unit?.toLowerCase() === 'mg' ? (entry.quantity || 1) / 1000 : (entry.quantity || 1));
+                              let effectivePureQty = normalizedQty;
+                              if (entry.isDiluted && entry.dilutionPercentage) {
+                                effectivePureQty = normalizedQty * (entry.dilutionPercentage / 100);
+                              }
+                              newQuantity = Math.ceil(rawAmount / effectivePureQty);
+                            }
+
+                            updateItem(item.id, { priceEntryId: entryId, unitPrice: pricePerUnit, quantity: newQuantity });
                           }}
                           className="flex-1 min-w-[200px] text-sm bg-app-bg border-app-border rounded-md shadow-sm text-app-text focus:border-app-accent focus:ring-app-accent"
                         >

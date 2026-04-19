@@ -721,7 +721,7 @@ export default function App() {
           })}
           <div className="mt-8 pt-8 border-t border-app-border px-4 text-center lg:text-left">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-app-muted">
-              Fragrance Planner v1.4.4
+              Fragrance Planner v1.4.5
             </p>
             <p className="text-[9px] font-bold text-app-accent/60 uppercase tracking-widest mt-1">
               Created by Sengeh Fragrance
@@ -885,15 +885,15 @@ export default function App() {
       {/* Export Modal */}
       {exportModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-app-card rounded-xl shadow-xl max-w-md w-full p-6 border border-app-border">
-            <div className="flex justify-between items-center mb-4">
+          <div className="bg-app-card rounded-xl shadow-xl max-w-md w-full p-6 border border-app-border flex flex-col max-h-[90vh]">
+            <div className="flex justify-between items-center mb-4 shrink-0">
               <h2 className="text-xl font-bold text-app-text">Export Data</h2>
               <button onClick={() => setExportModalOpen(false)} className="text-app-muted hover:text-app-text">
                 <X size={20} />
               </button>
             </div>
             
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto flex-1 pr-2">
               <div>
                 <label className="block text-sm font-medium text-app-muted mb-1">Filename</label>
                 <div className="flex items-center gap-2">
@@ -954,7 +954,7 @@ export default function App() {
               </div>
             </div>
             
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex justify-end gap-3 shrink-0">
               <button 
                 onClick={() => setExportModalOpen(false)}
                 className="px-4 py-2 text-app-text bg-app-bg hover:bg-app-card border border-app-border rounded-md transition-colors font-medium"

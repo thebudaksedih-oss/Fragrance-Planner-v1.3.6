@@ -92,7 +92,7 @@ export default function Settings({ settings, setSettings }: SettingsProps) {
           </div>
           
           <div className="pt-4 border-t border-app-border flex justify-between items-center">
-            <span className="text-[10px] font-black text-app-muted uppercase tracking-[0.2em]">Fragrance Planner v1.4.4</span>
+            <span className="text-[10px] font-black text-app-muted uppercase tracking-[0.2em]">Fragrance Planner v1.4.5</span>
             <button
               onClick={handleSave}
               className="flex items-center gap-2 px-6 py-2 bg-app-accent text-white rounded-xl hover:bg-app-accent-hover transition-all font-bold shadow-sm"
