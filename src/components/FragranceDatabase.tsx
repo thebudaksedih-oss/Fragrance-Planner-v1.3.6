@@ -813,7 +813,7 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-app-text mb-2">Perfume Type</label>
               <div className="flex flex-wrap gap-2">
-                {['Fresh', 'Summer', 'Winter', 'Gourmand', 'Floral', 'Woody', 'Aromatic', 'Oriental', 'Green', 'Fruity', 'Soapy', 'Citrus', 'Spicy', 'Aquatic', 'Leather', 'Powdery', 'Chypre', 'Musk'].map((type) => {
+                {['Fresh', 'Summer', 'Winter', 'Gourmand', 'Floral', 'Woody', 'Aromatic', 'Oriental', 'Green', 'Fruity', 'Soapy', 'Citrus', 'Spicy', 'Aquatic', 'Leather', 'Powdery', 'Chypre', 'Musk', 'Animalic', 'Vanilla', 'Amber', 'Smoky', 'Lactonic', 'Herbal', 'Aldehydic', 'Earthy', 'Balsamic'].sort().map((type) => {
                   const isSelected = currentFragrance.perfumeType?.includes(type);
                   return (
                     <button
@@ -993,9 +993,22 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
               </div>
               <div>
                 <p className={`text-sm font-medium ${!isCustom ? theme.subText : ''} uppercase tracking-wider`} style={subTextStyle}>Perfume Type</p>
-                <p className={`mt-1 text-lg font-semibold ${!isCustom ? theme.text : ''}`} style={textStyle}>
-                  {selectedFragrance.perfumeType?.length ? selectedFragrance.perfumeType.join(', ') : '—'}
-                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {selectedFragrance.perfumeType?.length ? (
+                    selectedFragrance.perfumeType.map((type) => (
+                      <span 
+                        key={type} 
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm border transition-transform hover:scale-105 ${!isCustom ? `${theme.tagBg} ${theme.tagText} ${theme.border}` : ''}`} 
+                        style={tagStyle}
+                      >
+                        <Sparkles size={12} className="opacity-70" />
+                        {type}
+                      </span>
+                    ))
+                  ) : (
+                    <span className={`text-lg font-semibold ${!isCustom ? theme.text : ''}`} style={textStyle}>—</span>
+                  )}
+                </div>
               </div>
               <div>
                 <p className={`text-sm font-medium ${!isCustom ? theme.subText : ''} uppercase tracking-wider`} style={subTextStyle}>Maceration Period</p>
@@ -1233,6 +1246,13 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
                           </span>
                         </div>
                         <div className="hidden md:flex gap-2 min-w-0 mr-4">
+                          {fragrance.perfumeType && fragrance.perfumeType.length > 0 && (
+                            <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-md border truncate max-w-[120px] flex items-center gap-1 ${!isCustom ? `${theme.tagBg} ${theme.tagText} ${theme.border}` : ''}`} style={tagStyle}>
+                              <Sparkles size={8} className="opacity-70" />
+                              {fragrance.perfumeType[0]}
+                              {fragrance.perfumeType.length > 1 ? ' +' : ''}
+                            </span>
+                          )}
                           {fragrance.gender && (
                             <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-md border ${!isCustom ? `${theme.tagBg} ${theme.tagText} ${theme.border}` : ''}`} style={tagStyle}>
                               {fragrance.gender}
@@ -1481,6 +1501,27 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
                     className={`p-8 flex flex-col flex-1 relative rounded-b-[2rem] ${!isCustom ? theme.bottom : ''} border-t ${!isCustom ? theme.border : ''}`} 
                     style={{ ...bottomStyle, borderTopWidth: '1px' }}
                   >
+                    {fragrance.perfumeType && fragrance.perfumeType.length > 0 && (
+                      <div className="mb-6">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`w-1 h-4 rounded-full ${!isCustom ? theme.accent : ''}`} style={isCustom ? { backgroundColor: theme.accent } : {}} />
+                          <span className={`text-[10px] font-bold uppercase tracking-wider opacity-60 ${!isCustom ? theme.text : ''}`} style={textStyle}>Perfume Type</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {fragrance.perfumeType.map(type => (
+                            <span 
+                              key={type}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider shadow-sm border transition-all hover:scale-105 ${!isCustom ? `${theme.tagBg} ${theme.tagText} border ${theme.border}` : ''}`} 
+                              style={tagStyle}
+                            >
+                              <Sparkles size={10} className="opacity-70" />
+                              {type}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {fragrance.smellProfile && (
                       <div className="mb-6">
                         <div className="flex items-center gap-2 mb-2">

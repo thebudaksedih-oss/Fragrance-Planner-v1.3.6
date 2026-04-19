@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Package, Plus, Search, ChevronRight, History, Trash2, Edit2, ArrowUpRight, ArrowDownLeft, Info, Box, X } from 'lucide-react';
+import { Package, Plus, Search, ChevronRight, History, Trash2, Edit2, ArrowUpRight, ArrowDownLeft, Info, Box, X, HelpCircle, Layers } from 'lucide-react';
 import { InventoryItem, InventoryContainer, InventoryLog, RawMaterial, Equipment, Fragrance } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { useConfirm } from '../hooks/useConfirm';
+import TutorialModal from './TutorialModal';
 
 interface InventoryManagerProps {
   inventory: InventoryItem[];
@@ -26,6 +27,7 @@ export default function InventoryManager({ inventory, setInventory, rawMaterials
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const { confirm, ConfirmModal } = useConfirm();
 
   // Stock Update Modal State
@@ -198,6 +200,24 @@ export default function InventoryManager({ inventory, setInventory, rawMaterials
     }, 'Remove', 'danger');
   };
 
+  const tutorialSteps = [
+    {
+      title: 'Track All Your Assets',
+      content: 'Maintain an accurate ledger of your raw materials, bulk fragrances, blended oils, and finished bottled products in one place.',
+      icon: <Package size={40} />
+    },
+    {
+      title: 'Container Sub-tracking',
+      content: 'Track inventory not just by item, but by individual physical containers. Useful if you have multiple 1L bottles of the same raw material.',
+      icon: <Box size={40} />
+    },
+    {
+      title: 'Audit Logs',
+      content: 'View a detailed history of every addition and deduction from your stock to find discrepancies or investigate usage patterns.',
+      icon: <History size={40} />
+    }
+  ];
+
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
@@ -205,12 +225,21 @@ export default function InventoryManager({ inventory, setInventory, rawMaterials
       className="space-y-6"
     >
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-app-text flex items-center gap-2">
-            <Package className="text-app-accent" />
-            Inventory Manager
-          </h2>
-          <p className="text-app-muted text-sm">Track your materials, equipment, and finished products.</p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-app-text flex items-center gap-2">
+              <Package className="text-app-accent" />
+              Inventory Manager
+            </h2>
+            <p className="text-app-muted text-sm">Track your materials, equipment, and finished products.</p>
+          </div>
+          <button
+            onClick={() => setShowTutorial(true)}
+            className="p-3 text-app-muted hover:text-app-accent hover:bg-app-accent/10 rounded-2xl transition-all"
+            title="How to use"
+          >
+            <HelpCircle size={24} />
+          </button>
         </div>
         <button
           onClick={() => setIsAddModalOpen(true)}
@@ -583,6 +612,12 @@ export default function InventoryManager({ inventory, setInventory, rawMaterials
         </div>
       )}
 
+      <TutorialModal 
+        isOpen={showTutorial} 
+        onClose={() => setShowTutorial(false)} 
+        steps={tutorialSteps} 
+        title="Inventory Manager Guide" 
+      />
       {ConfirmModal}
     </motion.div>
   );

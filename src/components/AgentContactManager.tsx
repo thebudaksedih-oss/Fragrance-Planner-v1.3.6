@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Users, UserCircle, Briefcase, Tag, Phone, Mail, MapPin, CreditCard, TrendingUp, Plus, Edit2, Trash2, ChevronLeft, Save, X, Share } from 'lucide-react';
+import { Users, UserCircle, Briefcase, Tag, Phone, Mail, MapPin, CreditCard, TrendingUp, Plus, Edit2, Trash2, ChevronLeft, Save, X, Share, HelpCircle } from 'lucide-react';
 import { Agent, CustomerContact } from '../types';
 import { useConfirm } from '../hooks/useConfirm';
 import { Capacitor } from '@capacitor/core';
+import TutorialModal from './TutorialModal';
 
 interface AgentContactManagerProps {
   agents: Agent[];
@@ -18,6 +19,7 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
   const [editingCustomer, setEditingCustomer] = useState<CustomerContact | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerContact | null>(null);
+  const [showTutorial, setShowTutorial] = useState(false);
   
   // Tagging state for customers
   const [tagInput, setTagInput] = useState('');
@@ -157,6 +159,24 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
       removeTag(editingCustomer!.styles![editingCustomer!.styles!.length - 1]);
     }
   };
+
+  const tutorialSteps = [
+    {
+      title: 'Agents vs Customers',
+      content: 'Manage your downstream agents who sell your products, and log direct customer contacts for retail records.',
+      icon: <Users size={40} />
+    },
+    {
+      title: 'Agent Capabilities',
+      content: 'Set default commission rates and generate Agent IDs (.aid files) that downstream agents can import to smoothly sync sales.',
+      icon: <Briefcase size={40} />
+    },
+    {
+      title: 'Customer Tags',
+      content: 'Tag customers by what they like (e.g., "Oud", "Fresh") so you can easily market new fragrances to the right group.',
+      icon: <Tag size={40} />
+    }
+  ];
 
   const [aidExportModalOpen, setAidExportModalOpen] = useState(false);
   const [aidExportFileName, setAidExportFileName] = useState('');
@@ -903,9 +923,17 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
           </h2>
           <p className="text-app-muted text-sm mt-1">Manage your sales agents and customer relationships.</p>
         </div>
-        <div className="flex bg-app-card p-1 rounded-lg border border-app-border">
+        <div className="flex items-center gap-4">
           <button
-            onClick={() => setActiveTab('agents')}
+            onClick={() => setShowTutorial(true)}
+            className="p-2 text-app-muted hover:text-app-accent hover:bg-app-accent/5 rounded-full transition-colors"
+            title="How to use"
+          >
+            <HelpCircle size={22} />
+          </button>
+          <div className="flex bg-app-card p-1 rounded-lg border border-app-border">
+            <button
+              onClick={() => setActiveTab('agents')}
             className={`px-6 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${
               activeTab === 'agents'
                 ? 'bg-app-accent text-white shadow-sm'
@@ -926,6 +954,7 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
             <UserCircle size={16} />
             Customers
           </button>
+          </div>
         </div>
       </div>
 
@@ -1106,6 +1135,12 @@ export default function AgentContactManager({ agents, setAgents, customers, setC
         </div>
       )}
       {ConfirmModal}
+      <TutorialModal 
+        isOpen={showTutorial} 
+        onClose={() => setShowTutorial(false)} 
+        steps={tutorialSteps} 
+        title="Agent Contacts Guide" 
+      />
     </div>
   );
 }

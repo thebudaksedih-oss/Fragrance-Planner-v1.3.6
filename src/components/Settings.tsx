@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AppSettings } from '../types';
-import { Settings as SettingsIcon, DollarSign, RefreshCw, Save } from 'lucide-react';
+import { Settings as SettingsIcon, DollarSign, RefreshCw, Save, HelpCircle, Route, ShoppingBag, Box, Calculator, Tag, Store } from 'lucide-react';
+import TutorialModal from './TutorialModal';
 
 interface SettingsProps {
   settings: AppSettings;
@@ -10,6 +11,40 @@ interface SettingsProps {
 export default function Settings({ settings, setSettings }: SettingsProps) {
   const [localSettings, setLocalSettings] = React.useState<AppSettings>(settings);
   const [isSaved, setIsSaved] = React.useState(false);
+  const [showWorkflowTutorial, setShowWorkflowTutorial] = useState(false);
+
+  const workflowSteps = [
+    {
+      title: 'Step 1: Prices & Inventory',
+      content: 'Start in the Price Tracker to record market costs of your raw materials, bottles, caps, etc. Once entered, go to Inventory Manager to log your actual physically available stock.',
+      icon: <Box size={40} />
+    },
+    {
+      title: 'Step 2: Formulas & Blends',
+      content: 'Head over to the Formula tab to craft your scent recipes. When you are ready to make a batch, use the Blend Planner. It will automatically check your inventory and calculate exact material costs based on your Price Tracker data.',
+      icon: <Calculator size={40} />
+    },
+    {
+      title: 'Step 3: Maceration',
+      content: 'After mixing raw materials, move to the Maceration Tracker. Log the batch. The app will notify you when it reaches maturity (based on typical aging rules for top/mid/base notes).',
+      icon: <RefreshCw size={40} />
+    },
+    {
+      title: 'Step 4: Bottling & Budgets',
+      content: 'Once macerated, use the Bottling Planner. It extracts stock from your bulk oil inventory and adds it to finished bottled inventory. Need a financial plan first? Use the Budget Planner to ensure you have enough capital.',
+      icon: <Route size={40} />
+    },
+    {
+      title: 'Step 5: Define Shop Items',
+      content: 'Your finished bottles are now in inventory. Go to the Sell Tracker > Item Shop sub-tab to map these inventory items into sellable products, setting their retail and wholesale prices.',
+      icon: <ShoppingBag size={40} />
+    },
+    {
+      title: 'Step 6: Contacts & Sales',
+      content: 'Record new retail Customers or wholesale Agents in the Agent/Contact Manager. Then, process new sales within the Sell Tracker records tab to draw down your finished stock and log revenue!',
+      icon: <Store size={40} />
+    }
+  ];
 
   const handleSave = () => {
     setSettings(localSettings);
@@ -92,7 +127,7 @@ export default function Settings({ settings, setSettings }: SettingsProps) {
           </div>
           
           <div className="pt-4 border-t border-app-border flex justify-between items-center">
-            <span className="text-[10px] font-black text-app-muted uppercase tracking-[0.2em]">Fragrance Planner v1.4.6</span>
+            <span className="text-[10px] font-black text-app-muted uppercase tracking-[0.2em]">Fragrance Planner v1.5.0</span>
             <button
               onClick={handleSave}
               className="flex items-center gap-2 px-6 py-2 bg-app-accent text-white rounded-xl hover:bg-app-accent-hover transition-all font-bold shadow-sm"
@@ -102,6 +137,32 @@ export default function Settings({ settings, setSettings }: SettingsProps) {
           </div>
         </div>
       </div>
+
+      <div className="bg-app-card rounded-2xl border border-app-border overflow-hidden">
+        <div className="px-6 py-4 border-b border-app-border bg-app-bg/50">
+          <h2 className="text-lg font-bold text-app-text flex items-center gap-2">
+            <HelpCircle size={20} className="text-blue-500" />
+            Application Workflow Guide
+          </h2>
+        </div>
+        <div className="p-6">
+           <p className="text-sm text-app-muted mb-6">Confused on how the modules interact with each other? Take a tour through the complete end-to-end product workflow.</p>
+           <button
+             onClick={() => setShowWorkflowTutorial(true)}
+             className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-app-accent/10 border border-app-accent/30 text-app-accent hover:bg-app-accent hover:text-white rounded-xl transition-colors font-bold shadow-sm"
+           >
+             <Route size={20} />
+             Start Master Workflow Tutorial
+           </button>
+        </div>
+      </div>
+
+      <TutorialModal 
+        isOpen={showWorkflowTutorial} 
+        onClose={() => setShowWorkflowTutorial(false)} 
+        steps={workflowSteps} 
+        title="Application Workflow Guide" 
+      />
     </div>
   );
 }

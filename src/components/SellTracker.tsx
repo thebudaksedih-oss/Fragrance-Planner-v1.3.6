@@ -26,7 +26,9 @@ import {
   Download,
   Upload,
   Ban,
-  UserCheck
+  UserCheck,
+  HelpCircle,
+  Briefcase
 } from 'lucide-react';
 import { 
   ShopItem, 
@@ -44,6 +46,7 @@ import { useConfirm } from '../hooks/useConfirm';
 import { Capacitor } from '@capacitor/core';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import TutorialModal from './TutorialModal';
 
 interface SellTrackerProps {
   shopItems: ShopItem[];
@@ -86,6 +89,7 @@ export default function SellTracker({
   const [editingBatchData, setEditingBatchData] = useState<Partial<OrderBatch> | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [agentExportFileName, setAgentExportFileName] = useState('');
+  const [showTutorial, setShowTutorial] = useState(false);
   const [exportSelection, setExportSelection] = useState({
     shopItems: true,
     stock: true
@@ -652,6 +656,24 @@ export default function SellTracker({
       setEditingOrder(prev => prev ? { ...prev, customerId: newContact.id, customCustomerName: undefined } : prev);
   };
 
+  const tutorialSteps = [
+    {
+      title: 'Item Shop',
+      content: 'Define what you sell (your finished bottled fragrances) in the Item Shop tab. You can set prices without editing the raw inventory item.',
+      icon: <ShoppingBag size={40} />
+    },
+    {
+      title: 'Tracking Sales',
+      content: 'Under Sell Records, track complete sale orders. Assign agents to the sale, log commissions, and easily pull products off your active stock.',
+      icon: <TrendingUp size={40} />
+    },
+    {
+      title: 'Export for Agents',
+      content: 'Share pricing rules, item lists, and stock levels to your downstream agents via the .fgs file export.',
+      icon: <Download size={40} />
+    }
+  ];
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {ConfirmModal}
@@ -702,12 +724,21 @@ export default function SellTracker({
 
       {/* Header & Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-app-text tracking-tight flex items-center gap-3">
-            <TrendingUp size={32} className="text-emerald-500" />
-            Sell Tracker
-          </h1>
-          <p className="text-app-muted font-medium mt-1">Manage your shop items and track sales performance.</p>
+        <div className="flex items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-black text-app-text tracking-tight flex items-center gap-3">
+              <TrendingUp size={32} className="text-emerald-500" />
+              Sell Tracker
+            </h1>
+            <p className="text-app-muted font-medium mt-1">Manage your shop items and track sales performance.</p>
+          </div>
+          <button
+            onClick={() => setShowTutorial(true)}
+            className="p-3 text-app-muted hover:text-emerald-500 hover:bg-emerald-500/10 rounded-2xl transition-all"
+            title="How to use"
+          >
+            <HelpCircle size={24} />
+          </button>
         </div>
         
         <div className="flex bg-app-card p-1 rounded-xl border border-app-border shadow-sm">
@@ -1943,6 +1974,13 @@ export default function SellTracker({
           </div>
         </div>
       )}
+
+      <TutorialModal 
+        isOpen={showTutorial} 
+        onClose={() => setShowTutorial(false)} 
+        steps={tutorialSteps} 
+        title="Sell Tracker Guide" 
+      />
     </div>
   );
 }
