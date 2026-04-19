@@ -84,6 +84,8 @@ export type Fragrance = {
   house: string;
   originalScent: string;
   description: string;
+  gender?: 'Male' | 'Female' | 'Unisex';
+  perfumeType?: string[];
   smellProfile: string;
   topNotes: string[];
   heartNotes: string[];

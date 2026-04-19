@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Trash2, Edit2, Search, X, ChevronLeft, MoreVertical, Copy, CheckSquare, Palette, ArrowUp, ArrowDown, Sparkles, ArrowRight, ArrowDownRight, ArrowUpRight, HelpCircle, Database, Layout, Eye, Pencil } from 'lucide-react';
+import { Plus, Trash2, Edit2, Search, X, ChevronLeft, MoreVertical, Copy, CheckSquare, Palette, ArrowUp, ArrowDown, Sparkles, ArrowRight, ArrowDownRight, ArrowUpRight, HelpCircle, Database, Layout, LayoutList, Eye, Pencil } from 'lucide-react';
 import { Fragrance, UserTheme } from '../types';
 
 import { useConfirm } from '../hooks/useConfirm';
@@ -368,6 +368,9 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState<'name' | 'tag' | 'notes'>('name');
   
+  const [viewMode, setViewMode] = useState<'card' | 'list'>('card');
+  const [groupBy, setGroupBy] = useState<'none' | 'house' | 'gender'>('none');
+  
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -675,26 +678,49 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
   };
 
   const filteredFragrances = useMemo(() => {
-    if (!searchQuery) return fragrances;
-    const query = searchQuery.toLowerCase();
-    return fragrances.filter(f => {
-      if (searchType === 'name') {
-        return f.name.toLowerCase().includes(query) || (f.house || '').toLowerCase().includes(query);
-      }
-      if (searchType === 'tag') {
-        return migrateToArray(f.tags).some(t => t.toLowerCase().includes(query));
-      }
-      if (searchType === 'notes') {
-        const allNotes = [
-          ...migrateToArray(f.topNotes),
-          ...migrateToArray(f.heartNotes),
-          ...migrateToArray(f.baseNotes)
-        ];
-        return allNotes.some(n => n.toLowerCase().includes(query));
-      }
-      return true;
-    });
+    let result = fragrances;
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = fragrances.filter(f => {
+        if (searchType === 'name') {
+          return f.name.toLowerCase().includes(query) || (f.house || '').toLowerCase().includes(query);
+        }
+        if (searchType === 'tag') {
+          return migrateToArray(f.tags).some(t => t.toLowerCase().includes(query));
+        }
+        if (searchType === 'notes') {
+          const allNotes = [
+            ...migrateToArray(f.topNotes),
+            ...migrateToArray(f.heartNotes),
+            ...migrateToArray(f.baseNotes)
+          ];
+          return allNotes.some(n => n.toLowerCase().includes(query));
+        }
+        return true;
+      });
+    }
+    return result;
   }, [fragrances, searchQuery, searchType]);
+
+  const groupedFragrances = useMemo<Record<string, Fragrance[]>>(() => {
+    if (groupBy === 'none') {
+      return { 'All Fragrances': filteredFragrances };
+    }
+    
+    const groups: Record<string, Fragrance[]> = {};
+    filteredFragrances.forEach((f) => {
+      let keys = ['Uncategorized'];
+      if (groupBy === 'house' && f.house) keys = [f.house];
+      else if (groupBy === 'gender' && f.gender) keys = [f.gender];
+      else if (groupBy === 'perfumeType' && f.perfumeType && f.perfumeType.length > 0) keys = f.perfumeType;
+      
+      keys.forEach(key => {
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(f);
+      });
+    });
+    return groups;
+  }, [filteredFragrances, groupBy]);
 
   if (viewState === 'edit') {
     return (
@@ -765,6 +791,55 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
               />
             </div>
             
+            <div>
+              <label className="block text-sm font-medium text-app-text mb-1">Gender</label>
+              <div className="flex gap-4">
+                {['Male', 'Female', 'Unisex'].map((gender) => (
+                  <label key={gender} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="gender"
+                      value={gender}
+                      checked={currentFragrance.gender === gender}
+                      onChange={(e) => setCurrentFragrance({ ...currentFragrance, gender: e.target.value as any })}
+                      className="text-app-accent focus:ring-app-accent"
+                    />
+                    <span className="text-sm text-app-text">{gender}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-app-text mb-2">Perfume Type</label>
+              <div className="flex flex-wrap gap-2">
+                {['Fresh', 'Summer', 'Winter', 'Gourmand', 'Floral', 'Woody', 'Aromatic', 'Oriental', 'Green', 'Fruity', 'Soapy', 'Citrus', 'Spicy', 'Aquatic', 'Leather', 'Powdery', 'Chypre', 'Musk'].map((type) => {
+                  const isSelected = currentFragrance.perfumeType?.includes(type);
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        const types = currentFragrance.perfumeType || [];
+                        if (isSelected) {
+                          setCurrentFragrance({ ...currentFragrance, perfumeType: types.filter(t => t !== type) });
+                        } else {
+                          setCurrentFragrance({ ...currentFragrance, perfumeType: [...types, type] });
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${
+                        isSelected 
+                          ? 'bg-app-accent text-white border-app-accent' 
+                          : 'bg-app-bg text-app-muted border-app-border hover:border-app-accent/50 hover:text-app-text'
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="md:col-span-2 space-y-4">
               <h4 className="font-medium text-app-text border-b border-app-border pb-2">Notes & Tags</h4>
               
@@ -913,6 +988,16 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
                 <p className={`mt-1 text-lg font-semibold ${!isCustom ? theme.text : ''}`} style={textStyle}>{selectedFragrance.smellProfile || '—'}</p>
               </div>
               <div>
+                <p className={`text-sm font-medium ${!isCustom ? theme.subText : ''} uppercase tracking-wider`} style={subTextStyle}>Gender</p>
+                <p className={`mt-1 text-lg font-semibold ${!isCustom ? theme.text : ''}`} style={textStyle}>{selectedFragrance.gender || '—'}</p>
+              </div>
+              <div>
+                <p className={`text-sm font-medium ${!isCustom ? theme.subText : ''} uppercase tracking-wider`} style={subTextStyle}>Perfume Type</p>
+                <p className={`mt-1 text-lg font-semibold ${!isCustom ? theme.text : ''}`} style={textStyle}>
+                  {selectedFragrance.perfumeType?.length ? selectedFragrance.perfumeType.join(', ') : '—'}
+                </p>
+              </div>
+              <div>
                 <p className={`text-sm font-medium ${!isCustom ? theme.subText : ''} uppercase tracking-wider`} style={subTextStyle}>Maceration Period</p>
                 <p className={`mt-1 text-lg font-semibold ${!isCustom ? theme.text : ''}`} style={textStyle}>{selectedFragrance.macerationPeriodWeeks ? `${selectedFragrance.macerationPeriodWeeks} Weeks` : '—'}</p>
               </div>
@@ -1038,7 +1123,7 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
           </select>
           <button
             onClick={() => {
-              setCurrentFragrance({ topNotes: [], heartNotes: [], baseNotes: [], tags: [] } as any);
+              setCurrentFragrance({ topNotes: [], heartNotes: [], baseNotes: [], tags: [], perfumeType: [] } as any);
               setViewState('edit');
             }}
             className="flex items-center gap-2 bg-app-accent text-white px-4 py-2 rounded-md hover:bg-app-accent-hover transition-colors whitespace-nowrap shadow-sm"
@@ -1049,35 +1134,136 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredFragrances.length === 0 ? (
-          <div className="col-span-full py-12 text-center text-app-muted italic bg-app-card rounded-lg border border-app-border border-dashed">
-            {searchQuery ? 'No fragrances found matching your search.' : 'No fragrances in the database.'}
+      <div className="flex flex-col md:flex-row items-center gap-4 py-2 border-y border-app-border">
+        <div className="flex items-center gap-4 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 hide-scrollbar">
+          <div className="flex bg-app-bg border border-app-border rounded-md overflow-hidden">
+            <button
+              onClick={() => setViewMode('card')}
+              className={`p-2 transition-colors ${viewMode === 'card' ? 'bg-app-accent text-white' : 'text-app-muted hover:text-app-text hover:bg-app-card'}`}
+              title="Card View"
+            >
+              <Layout size={18} />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-app-accent text-white' : 'text-app-muted hover:text-app-text hover:bg-app-card'}`}
+              title="List View"
+            >
+              <LayoutList size={18} />
+            </button>
           </div>
-        ) : (
-          filteredFragrances.map((fragrance, index) => {
-            const tags = migrateToArray(fragrance.tags);
-            const theme = fragrance.customTheme || colorThemes.find(t => t.id === fragrance.colorTheme) || colorThemes[0];
-            const originalIndex = fragrances.findIndex(f => f.id === fragrance.id);
-            
-            const isCustom = !!fragrance.customTheme;
-            const topStyle = isCustom ? { 
-              background: theme.isGradient ? `linear-gradient(${theme.gradientDirection || 'to right'}, ${theme.color1}, ${theme.color2})` : theme.top,
-              color: theme.text,
-              borderColor: theme.border
-            } : {};
-            const bottomStyle = isCustom ? { 
-              backgroundColor: theme.bottom,
-              borderColor: theme.border
-            } : {};
-            const textStyle = isCustom ? { color: theme.text } : {};
-            const subTextStyle = isCustom ? { color: theme.subText } : {};
-            const accentStyle = isCustom ? { background: theme.accent } : {};
-            const borderStyle = isCustom ? { borderColor: theme.border } : {};
-            const tagStyle = isCustom ? { backgroundColor: theme.tagBg, color: theme.tagText, borderColor: theme.border } : {};
+          
+          <div className="flex items-center gap-2 whitespace-nowrap">
+            <span className="text-sm font-medium text-app-muted">Group by:</span>
+            <select
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value as any)}
+              className="px-3 py-1.5 bg-app-bg border border-app-border rounded-md text-sm text-app-text focus:ring-app-accent focus:border-app-accent"
+            >
+              <option value="none">None</option>
+              <option value="house">House</option>
+              <option value="gender">Gender</option>
+              <option value="perfumeType">Perfume Type</option>
+            </select>
+          </div>
+        </div>
+      </div>
 
-            return (
-              <motion.div
+      <div className="space-y-12">
+        {(Object.entries(groupedFragrances) as [string, Fragrance[]][]).map(([groupName, frags]) => (
+          <div key={groupName} className="space-y-6">
+            {groupBy !== 'none' && (
+              <h3 className="text-xl font-bold border-b border-app-border pb-2 uppercase tracking-wide text-app-text/80">{groupName} ({frags.length})</h3>
+            )}
+            <div className={viewMode === 'card' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-3"}>
+              {frags.length === 0 ? (
+                <div className="col-span-full py-12 text-center text-app-muted italic bg-app-card rounded-lg border border-app-border border-dashed">
+                  {searchQuery ? 'No fragrances found matching your search.' : 'No fragrances in the database.'}
+                </div>
+              ) : (
+                frags.map((fragrance, filterIndex) => {
+                  const tags = migrateToArray(fragrance.tags);
+                  const theme = fragrance.customTheme || colorThemes.find(t => t.id === fragrance.colorTheme) || colorThemes[0];
+                  
+                  const isCustom = !!fragrance.customTheme;
+                  const cTheme = theme as UserTheme;
+                  const topStyle = isCustom ? { 
+                    background: cTheme.isGradient ? `linear-gradient(${cTheme.gradientDirection || 'to right'}, ${cTheme.color1}, ${cTheme.color2})` : theme.top,
+                    color: theme.text,
+                    borderColor: theme.border
+                  } : {};
+                  const bottomStyle = isCustom ? { 
+                    backgroundColor: theme.bottom,
+                    borderColor: theme.border
+                  } : {};
+                  const textStyle = isCustom ? { color: theme.text } : {};
+                  const subTextStyle = isCustom ? { color: theme.subText } : {};
+                  const borderStyle = isCustom ? { borderColor: theme.border } : {};
+                  const tagStyle = isCustom ? { backgroundColor: theme.tagBg, color: theme.tagText, borderColor: theme.border } : {};
+
+                  if (viewMode === 'list') {
+                    return (
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        key={`list-${fragrance.id}`}
+                        className={`flex items-center gap-4 bg-app-card border rounded-xl shadow-sm hover:shadow-md transition-shadow p-4 cursor-pointer group ${!isCustom ? theme.border : ''} ${selectedIds.includes(fragrance.id) ? 'ring-2 ring-app-accent' : ''}`}
+                        style={isCustom ? borderStyle : {}}
+                        onClick={() => {
+                          if (isSelectionMode) toggleSelection(fragrance.id);
+                          else { setSelectedFragrance(fragrance); setViewState('detail'); }
+                        }}
+                      >
+                        {groupBy === 'none' && !searchQuery && (
+                          <div className="flex flex-col gap-1 pr-2 border-r border-app-border opacity-50 hover:opacity-100 group-hover:opacity-100 transition-opacity">
+                            <button onClick={(e) => moveFragrance(e, fragrance.id, 'up')} className="p-1 hover:bg-app-bg rounded text-app-muted hover:text-app-text"><ArrowUp size={14} /></button>
+                            <button onClick={(e) => moveFragrance(e, fragrance.id, 'down')} className="p-1 hover:bg-app-bg rounded text-app-muted hover:text-app-text"><ArrowDown size={14} /></button>
+                          </div>
+                        )}
+                        <div 
+                          className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg shadow-sm border shrink-0 ${!isCustom ? `${theme.top} ${theme.text} outline-none ${theme.border}` : ''}`} 
+                          style={{...topStyle, borderWidth: '1px' }}
+                        >
+                          {fragrance.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className={`font-bold truncate text-base ${!isCustom ? theme.text : ''}`} style={textStyle}>{fragrance.name}</h4>
+                          <span className={`text-xs uppercase tracking-wider font-semibold opacity-70 truncate block ${!isCustom ? theme.subText : ''}`} style={subTextStyle}>
+                             {fragrance.house || 'Unknown House'}
+                          </span>
+                        </div>
+                        <div className="hidden md:flex gap-2 min-w-0 mr-4">
+                          {fragrance.gender && (
+                            <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-md border ${!isCustom ? `${theme.tagBg} ${theme.tagText} ${theme.border}` : ''}`} style={tagStyle}>
+                              {fragrance.gender}
+                            </span>
+                          )}
+                          {fragrance.smellProfile && (
+                            <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-md border truncate max-w-[120px] ${!isCustom ? `${theme.tagBg} ${theme.tagText} ${theme.border}` : ''}`} style={tagStyle}>
+                              {fragrance.smellProfile}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                           <button
+                             onClick={(e) => { e.stopPropagation(); handleEdit(fragrance); }}
+                             className="p-2 text-app-muted hover:text-app-text hover:bg-app-bg rounded-md"
+                           >
+                              <Edit2 size={16} />
+                           </button>
+                           <button
+                             onClick={(e) => { e.stopPropagation(); handleDelete(fragrance.id); }}
+                             className="p-2 text-red-500 hover:text-red-600 hover:bg-red-500/10 rounded-md"
+                           >
+                              <Trash2 size={16} />
+                           </button>
+                        </div>
+                      </motion.div>
+                    );
+                  }
+
+                  return (
+                    <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 whileHover={{ y: -8, transition: { duration: 0.2 } }}
@@ -1263,7 +1449,7 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
                       <div className="flex items-start justify-between mb-1">
                         <h3 
                           className={`text-2xl font-bold tracking-tight leading-tight ${!isCustom ? theme.text : ''} transition-all duration-300 group-hover:translate-x-1`} 
-                          style={isCustom ? { color: theme.nameText || theme.text } : textStyle}
+                          style={isCustom ? { color: cTheme.nameText || theme.text } : textStyle}
                         >
                           {fragrance.name}
                         </h3>
@@ -1272,7 +1458,7 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
                       {fragrance.house && (
                         <p 
                           className={`text-[10px] font-black uppercase tracking-[0.25em] ${!isCustom ? theme.subText : ''} opacity-80`} 
-                          style={isCustom ? { color: theme.houseText || theme.subText } : subTextStyle}
+                          style={isCustom ? { color: cTheme.houseText || theme.subText } : subTextStyle}
                         >
                           {fragrance.house}
                         </p>
@@ -1281,7 +1467,7 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
 
                     {fragrance.originalScent && (
                       <div className="mt-6 relative z-10">
-                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-medium bg-white/10 backdrop-blur-md border border-white/10 ${!isCustom ? theme.text : ''}`} style={isCustom ? { color: theme.inspiredText || theme.text } : textStyle}>
+                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-medium bg-white/10 backdrop-blur-md border border-white/10 ${!isCustom ? theme.text : ''}`} style={isCustom ? { color: cTheme.inspiredText || theme.text } : textStyle}>
                           <Sparkles size={10} className="opacity-70" />
                           <span className="opacity-70">Inspired by</span>
                           <span className="font-bold">{fragrance.originalScent}</span>
@@ -1340,8 +1526,11 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
               </motion.div>
               );
             })
-        )}
+          )}
+        </div>
       </div>
+    ))}
+    </div>
 
       {/* Custom Theme Editor Modal */}
       {customThemeEditor && (

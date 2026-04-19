@@ -721,7 +721,7 @@ export default function App() {
           })}
           <div className="mt-8 pt-8 border-t border-app-border px-4 text-center lg:text-left">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-app-muted">
-              Fragrance Planner v1.4.5
+              Fragrance Planner v1.4.6
             </p>
             <p className="text-[9px] font-bold text-app-accent/60 uppercase tracking-widest mt-1">
               Created by Sengeh Fragrance
@@ -1125,17 +1125,17 @@ export default function App() {
       {/* Import Summary Modal */}
       {importSummary && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-app-card rounded-xl shadow-xl max-w-sm w-full p-6 text-center border border-app-border">
-            <div className="w-16 h-16 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-green-500/20">
+          <div className="bg-app-card rounded-xl shadow-xl max-w-sm w-full p-6 text-center border border-app-border flex flex-col max-h-[90vh]">
+            <div className="w-16 h-16 bg-green-500/10 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-green-500/20 shrink-0">
               <Database size={32} />
             </div>
-            <h2 className="text-2xl font-bold text-app-text mb-2">Import Successful!</h2>
-            <div className="text-app-muted text-sm mb-6 whitespace-pre-line text-left bg-app-bg p-4 rounded-lg border border-app-border font-medium">
+            <h2 className="text-2xl font-bold text-app-text mb-2 shrink-0">Import Successful!</h2>
+            <div className="text-app-muted text-sm mb-6 whitespace-pre-line text-left bg-app-bg p-4 rounded-lg border border-app-border font-medium overflow-y-auto flex-1">
               {importSummary}
             </div>
             <button 
               onClick={() => setImportSummary(null)}
-              className="w-full px-4 py-2 bg-app-accent text-white rounded-md hover:bg-app-accent-hover transition-colors font-medium shadow-sm"
+              className="w-full px-4 py-2 bg-app-accent text-white rounded-md hover:bg-app-accent-hover transition-colors font-medium shadow-sm shrink-0"
             >
               Awesome, let's go!
             </button>
