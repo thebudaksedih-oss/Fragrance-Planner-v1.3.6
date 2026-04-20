@@ -240,7 +240,7 @@ export default function MaterialList({ rawMaterials, setRawMaterials }: Props) {
 
   // Get unique types for the dropdown
   const availableTypes = useMemo(() => {
-    const defaultTypes = ['raw_material', 'alcohol', 'solvent', 'accord_material', 'natural_oil', 'oil', 'labdanum', 'labdanum_absolute', 'absolute'];
+    const defaultTypes = ['raw_material', 'alcohol', 'solvent', 'accord_material', 'natural_oil', 'oil', 'labdanum', 'labdanum_absolute', 'absolute', 'resinoid'];
     const existingTypes = rawMaterials.flatMap(m => getTypes(m));
     return Array.from(new Set([...defaultTypes, ...existingTypes]));
   }, [rawMaterials]);

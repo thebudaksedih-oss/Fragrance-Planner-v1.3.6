@@ -138,6 +138,7 @@ export default function ImportMaterialsModal({ isOpen, onClose, onImport, existi
          else if (tl.includes('labdanum')) type = 'labdanum';
          else if (tl.includes('oil')) type = 'oil';
          else if (tl.includes('solvent')) type = 'solvent';
+         else if (tl.includes('resinoid')) type = 'resinoid';
          
          character = typeInput; // Store raw input as character for context
       }
