@@ -180,7 +180,7 @@ export default function TabDrawer({
             
             <div className="p-6 border-t border-app-border bg-app-bg/50 text-center">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-app-muted">
-                Fragrance Planner v1.5.1
+                Fragrance Planner v1.6.0
               </p>
               <p className="text-[9px] font-bold text-app-accent/60 uppercase tracking-widest mt-1">
                 Created by Sengeh Fragrance

@@ -71,17 +71,17 @@ export default function Settings({ settings, setSettings }: SettingsProps) {
         </div>
         
         <div className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-2">
             <div>
               <label className="block text-xs font-black uppercase text-app-muted mb-2 tracking-widest">Global Currency Symbol</label>
               <input
                 type="text"
                 value={localSettings.currencySymbol}
                 onChange={(e) => setLocalSettings(prev => ({ ...prev, currencySymbol: e.target.value }))}
-                className="w-full px-4 py-2 bg-app-bg border border-app-border rounded-xl focus:ring-2 focus:ring-app-accent outline-none text-app-text"
-                placeholder="e.g. $, €, £, RM"
+                className="w-full px-4 py-2.5 bg-app-bg border border-app-border rounded-xl focus:ring-2 focus:ring-app-accent outline-none text-app-text font-medium shadow-sm"
+                placeholder="RM"
               />
-              <p className="text-xs text-app-muted mt-2">This symbol will be displayed across the app (Budgets, Sell Tracker, etc.)</p>
+              <p className="text-[11px] text-app-muted mt-2 font-medium">This symbol will be displayed across the app (Budgets, Sell Tracker, etc.)</p>
             </div>
             
             <div>
@@ -90,8 +90,8 @@ export default function Settings({ settings, setSettings }: SettingsProps) {
                 type="text"
                 value={localSettings.baseCurrency}
                 onChange={(e) => setLocalSettings(prev => ({ ...prev, baseCurrency: e.target.value }))}
-                className="w-full px-4 py-2 bg-app-bg border border-app-border rounded-xl focus:ring-2 focus:ring-app-accent outline-none text-app-text"
-                placeholder="e.g. USD"
+                className="w-full px-4 py-2.5 bg-app-bg border border-app-border rounded-xl focus:ring-2 focus:ring-app-accent outline-none text-app-text font-medium shadow-sm"
+                placeholder="USD"
               />
             </div>
             
@@ -101,38 +101,39 @@ export default function Settings({ settings, setSettings }: SettingsProps) {
                 type="text"
                 value={localSettings.targetCurrency}
                 onChange={(e) => setLocalSettings(prev => ({ ...prev, targetCurrency: e.target.value }))}
-                className="w-full px-4 py-2 bg-app-bg border border-app-border rounded-xl focus:ring-2 focus:ring-app-accent outline-none text-app-text"
-                placeholder="e.g. EUR"
+                className="w-full px-4 py-2.5 bg-app-bg border border-app-border rounded-xl focus:ring-2 focus:ring-app-accent outline-none text-app-text font-medium shadow-sm"
+                placeholder="RM"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-black uppercase text-app-muted mb-2 tracking-widest flex justify-between">
+              <label className="block text-xs font-black uppercase text-app-muted mb-2 tracking-widest flex justify-between items-center">
                 <span>Conversion Multiplier</span>
-                <span className="text-app-accent text-[10px]">1 {localSettings.baseCurrency || 'Base'} = {localSettings.currencyMultiplier} {localSettings.targetCurrency || 'Target'}</span>
+                <span className="text-app-text font-black text-xs">
+                  1 {localSettings.baseCurrency || 'USD'} = {localSettings.currencyMultiplier} {localSettings.targetCurrency || 'RM'}
+                </span>
               </label>
               <input
                 type="number"
-                step="0.0001"
+                step="0.01"
                 min="0"
                 value={localSettings.currencyMultiplier}
                 onChange={(e) => setLocalSettings(prev => ({ ...prev, currencyMultiplier: parseFloat(e.target.value) || 1 }))}
-                className="w-full px-4 py-2 bg-app-bg border border-app-border rounded-xl focus:ring-2 focus:ring-app-accent outline-none text-app-text"
-                placeholder="e.g. 1.0"
+                className="w-full px-4 py-2.5 bg-app-bg border border-app-border rounded-xl focus:ring-2 focus:ring-app-accent outline-none text-app-text font-medium shadow-sm"
               />
-              <p className="text-[10px] text-app-muted mt-2">
+              <p className="text-[11px] leading-relaxed text-app-muted mt-2 font-medium">
                 This multiplier can be used in your calculations. Note: Currently this doesn't auto-convert your historical data but updates future UI interactions where applied.
               </p>
             </div>
           </div>
           
-          <div className="pt-4 border-t border-app-border flex justify-between items-center">
-            <span className="text-[10px] font-black text-app-muted uppercase tracking-[0.2em]">Fragrance Planner v1.5.1</span>
+          <div className="pt-6 border-t border-app-border flex justify-between items-center">
+            <span className="text-[11px] font-black text-app-muted uppercase tracking-[0.25em]">FRAGRANCE PLANNER V1.6.0</span>
             <button
               onClick={handleSave}
-              className="flex items-center gap-2 px-6 py-2 bg-app-accent text-white rounded-xl hover:bg-app-accent-hover transition-all font-bold shadow-sm"
+              className="flex items-center gap-2 px-8 py-3 bg-app-accent text-white rounded-xl hover:bg-app-accent-hover active:scale-95 transition-all font-bold shadow-md"
             >
-              {isSaved ? <span className="flex items-center gap-2"><RefreshCw size={18} className="animate-spin" /> Saved</span> : <span className="flex items-center gap-2"><Save size={18} /> Save Settings</span>}
+              {isSaved ? <span className="flex items-center gap-2"><RefreshCw size={20} className="animate-spin" /> Saved</span> : <span className="flex items-center gap-2"><Save size={20} /> Save Settings</span>}
             </button>
           </div>
         </div>

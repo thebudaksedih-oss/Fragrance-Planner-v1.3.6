@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Save, X, ChevronLeft, Edit2, MoreVertical, Copy, CheckSquare, ArrowUp, ArrowDown, HelpCircle, Beaker, Zap, Calculator, Layers, GitBranch, History, ArrowLeftRight } from 'lucide-react';
+import { Plus, Trash2, Save, X, ChevronLeft, Edit2, MoreVertical, Copy, CheckSquare, ArrowUp, ArrowDown, HelpCircle, Beaker, Zap, Calculator, Layers, GitBranch, History, ArrowLeftRight, ChevronDown, Search } from 'lucide-react';
 import { Formula, Material, FragranceOil, RawMaterial, Fragrance } from '../types';
 import { useConfirm } from '../hooks/useConfirm';
 import TutorialModal from './TutorialModal';
+import ImportFormulaModal from './ImportFormulaModal';
 
 const generateId = () => {
   try {
@@ -12,14 +13,89 @@ const generateId = () => {
   }
 };
 
+interface SearchableSelectProps {
+  value: string;
+  onChange: (val: string) => void;
+  options: { id: string; name: string; isDiluted?: boolean; dilutionPercentage?: number }[];
+  placeholder?: string;
+  className?: string;
+}
+
+const SearchableSelect = ({ value, onChange, options, placeholder = "Select...", className = "" }: SearchableSelectProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find(o => o.id === value);
+  const filteredOptions = options.filter(o => o.name.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div className={`relative ${className}`} ref={wrapperRef}>
+      <div 
+        className="w-full px-3 py-2 border border-app-border bg-app-bg text-app-text rounded-md focus-within:ring-1 focus-within:ring-app-accent focus-within:border-app-accent cursor-pointer flex justify-between items-center"
+        onClick={() => { setIsOpen(true); setSearch(''); }}
+      >
+        <span className="truncate">{selectedOption ? `${selectedOption.name} ${selectedOption.isDiluted ? `(${selectedOption.dilutionPercentage || 0}%)` : ''}` : placeholder}</span>
+        <ChevronDown size={14} className="text-app-muted shrink-0 ml-2" />
+      </div>
+      
+      {isOpen && (
+        <div className="absolute z-[100] w-full mt-1 bg-app-card border border-app-border rounded-md shadow-lg max-h-60 flex flex-col">
+          <div className="p-2 border-b border-app-border sticky top-0 bg-app-card rounded-t-md relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-app-muted" size={14} />
+            <input
+              type="text"
+              autoFocus
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 border border-app-border bg-app-bg text-app-text text-sm rounded focus:outline-none focus:ring-1 focus:ring-app-accent"
+              placeholder="Search..."
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+          <div className="overflow-y-auto overflow-x-hidden flex-1 py-1">
+            {filteredOptions.length === 0 ? (
+              <div className="p-3 text-sm text-app-muted text-center italic">No results found</div>
+            ) : (
+                filteredOptions.map(m => (
+                  <div
+                    key={m.id}
+                    onClick={() => {
+                      onChange(m.id);
+                      setIsOpen(false);
+                    }}
+                    className={`px-3 py-2 text-sm text-app-text hover:bg-app-accent/10 cursor-pointer ${value === m.id ? 'bg-app-accent/5 font-medium' : ''}`}
+                  >
+                    {m.name} {m.isDiluted ? <span className="text-app-muted text-xs ml-1">({m.dilutionPercentage || 0}%)</span> : null}
+                  </div>
+                ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 interface Props {
   formulas: Formula[];
   setFormulas: React.Dispatch<React.SetStateAction<Formula[]>>;
   rawMaterials: RawMaterial[];
+  setRawMaterials?: React.Dispatch<React.SetStateAction<RawMaterial[]>>;
   fragrances: Fragrance[];
 }
 
-export default function FormulaList({ formulas, setFormulas, rawMaterials, fragrances }: Props) {
+export default function FormulaList({ formulas, setFormulas, rawMaterials, setRawMaterials, fragrances }: Props) {
   const [viewState, setViewState] = useState<'list' | 'detail' | 'edit' | 'compare' | 'history'>('list');
   const [selectedFormula, setSelectedFormula] = useState<Formula | null>(null);
   const [editingFormula, setEditingFormula] = useState<Formula | null>(null);
@@ -29,6 +105,7 @@ export default function FormulaList({ formulas, setFormulas, rawMaterials, fragr
   const [showTutorial, setShowTutorial] = useState(false);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [isCompareMode, setIsCompareMode] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const { confirm, ConfirmModal } = useConfirm();
 
   const tutorialSteps = [
@@ -739,16 +816,12 @@ export default function FormulaList({ formulas, setFormulas, rawMaterials, fragr
               <div className="space-y-3">
                 {(editingFormula.materials || []).map((material) => (
                   <div key={material.id} className="flex items-center gap-3">
-                    <select
+                    <SearchableSelect
                       value={material.rawMaterialId || ''}
-                      onChange={(e) => updateMaterial(material.id, 'rawMaterialId', e.target.value)}
-                      className="flex-1 px-3 py-2 border border-app-border bg-app-bg text-app-text rounded-md focus:ring-app-accent focus:border-app-accent"
-                    >
-                      <option value="">Select Raw Material...</option>
-                      {rawMaterialOptions.map(m => (
-                        <option key={m.id} value={m.id}>{m.name} {m.isDiluted ? `(${m.dilutionPercentage}%)` : ''}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => updateMaterial(material.id, 'rawMaterialId', val)}
+                      options={rawMaterialOptions}
+                      placeholder="Select Raw Material..."
+                    />
                     {editingFormula.type === 'accord' ? (
                       <>
                         <div className="w-24">
@@ -847,16 +920,12 @@ export default function FormulaList({ formulas, setFormulas, rawMaterials, fragr
 
                   return (
                     <div key={alcohol.id} className="flex items-center gap-3">
-                      <select
+                      <SearchableSelect
                         value={alcohol.rawMaterialId || ''}
-                        onChange={(e) => updateAlcohol(alcohol.id, 'rawMaterialId', e.target.value)}
-                        className="flex-1 px-3 py-2 border border-app-border bg-app-bg text-app-text rounded-md focus:ring-app-accent focus:border-app-accent"
-                      >
-                        <option value="">Select Alcohol/Solvent...</option>
-                        {alcoholOptions.map(m => (
-                          <option key={m.id} value={m.id}>{m.name}</option>
-                        ))}
-                      </select>
+                        onChange={(val) => updateAlcohol(alcohol.id, 'rawMaterialId', val)}
+                        options={alcoholOptions}
+                        placeholder="Select Alcohol/Solvent..."
+                      />
                       <div className="relative w-32">
                         <input
                           type="number"
@@ -1453,6 +1522,12 @@ if (viewState === 'compare' && compareIds.length === 2) {
           )}
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-2 bg-app-card border border-app-border text-app-text px-4 py-2 rounded-md hover:bg-app-bg transition-colors shadow-sm whitespace-nowrap"
+            >
+              Import Formula
+            </button>
+            <button
               onClick={() => addFormula('formula')}
               className="flex items-center gap-2 bg-app-accent text-white px-4 py-2 rounded-md hover:bg-app-accent-hover transition-colors shadow-sm"
             >
@@ -1654,6 +1729,17 @@ if (viewState === 'compare' && compareIds.length === 2) {
         onClose={() => setShowTutorial(false)}
         title="Formula List Guide"
         steps={tutorialSteps}
+      />
+      <ImportFormulaModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        existingMaterials={rawMaterials}
+        onImport={(importedFormula, newRawMaterials) => {
+          setFormulas(prev => [...prev, importedFormula]);
+          if (newRawMaterials.length > 0 && setRawMaterials) {
+            setRawMaterials(prev => [...prev, ...newRawMaterials]);
+          }
+        }}
       />
     </div>
   );

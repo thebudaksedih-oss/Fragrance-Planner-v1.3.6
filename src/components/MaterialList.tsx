@@ -3,6 +3,7 @@ import { Plus, Trash2, Search, Save, X, ChevronLeft, MoreVertical, Copy, CheckSq
 import { RawMaterial } from '../types';
 import { useConfirm } from '../hooks/useConfirm';
 import TutorialModal from './TutorialModal';
+import ImportMaterialsModal from './ImportMaterialsModal';
 
 const generateId = () => {
   try {
@@ -17,18 +18,42 @@ interface Props {
   setRawMaterials: React.Dispatch<React.SetStateAction<RawMaterial[]>>;
 }
 
+const OLFACTORY_FAMILIES: Record<string, string[]> = {
+  'Citrus': ['Citrus Aromatic', 'Citrus Floral', 'Citrus Woody', 'Citrus Gourmand', 'Citrus Green', 'Citrus Musk'],
+  'Floral': ['Soliflore (Single Floral)', 'Floral Bouquet', 'Floral Aldehydic', 'Floral Fruity', 'Floral Green', 'Floral Woody', 'Floral Aquatic', 'Floral Powdery', 'Floral Musky', 'Floral Gourmand', 'Indolic', 'Creamy'],
+  'Fougère': ['Aromatic Fougère', 'Fresh Fougère', 'Woody Fougère', 'Oriental Fougère', 'Green Fougère'],
+  'Chypre': ['Fruity Chypre', 'Floral Chypre', 'Green Chypre', 'Leather Chypre', 'Woody Chypre', 'Modern Chypre'],
+  'Woody': ['Woody Aromatic', 'Woody Spicy', 'Woody Floral', 'Woody Amber', 'Woody Musky', 'Dry Woods', 'Creamy Woods', 'Earthy', 'Oriental', 'Smoky', 'Leathery', 'Soft', 'Clean'],
+  'Amber': ['Soft Amber', 'Amber Spicy', 'Amber Floral', 'Amber Woody', 'Amber Vanilla', 'Amber Gourmand', 'Amber Resinous'],
+  'Leather': ['Leather Floral', 'Leather Woody', 'Leather Smoky', 'Leather Animalic', 'Leather Tobacco'],
+  'Fresh': ['Aquatic (Marine)', 'Green', 'Aromatic', 'Citrus Fresh', 'Ozonic'],
+  'Fruity': ['Fresh', 'Sweet', 'Dark', 'Tropical', 'Citrus', 'Fruity Floral', 'Fruity Gourmand', 'Fruity Woody', 'Fruity Musky', 'Fruity Green', 'Fruity Aquatic', 'Fruity Spicy', 'Fruity Amber', 'Fruity Chypre'],
+  'Gourmand': ['Vanilla', 'Caramel', 'Chocolate', 'Coffee', 'Nutty', 'Sweet Dessert', 'Amber', 'Sweet', 'Bitter', 'Roasted'],
+  'Musk': ['Clean Musk', 'Powdery Musk', 'Skin Musk', 'Animalic Musk', 'Soft Musk'],
+  'Spicy': ['Fresh Spicy (Pepper, Ginger)', 'Warm Spicy (Cinnamon, Clove)', 'Aromatic Spicy', 'Citrus', 'Oriental'],
+  'Resinous / Balsamic': ['Incense', 'Myrrh', 'Frankincense', 'Balsams', 'Labdanum', 'Smoky', 'Oriental'],
+  'Animalic': ['Civet', 'Castoreum', 'Ambergris', 'Leather Animalic', 'Earthy', 'Gourmand'],
+  'Oakmoss': ['Tree Moss', 'Forest Moss', 'Earthy Moss', 'Damp Moss', 'Mossy Chypre', 'Mossy Woody', 'Mossy Green', 'Mossy Floral', 'Mossy Leather', 'Mossy Amber', 'Mossy Spicy', 'Mossy Aromatic', 'Mossy Musky', 'Mossy Earthy'],
+  'Aromatic': ['Herbal Aromatic', 'Green Aromatic', 'Fresh Aromatic', 'Dry Aromatic', 'Camphoraceous Aromatic', 'Aromatic Citrus', 'Aromatic Floral', 'Aromatic Woody', 'Aromatic Spicy', 'Aromatic Fougere', 'Aromatic Aquatic', 'Aromatic Musky', 'Aromatic Amber', 'Aromatic Green', 'Aromatic Fruity'],
+  'Green': ['Leafy Green', 'Grassy Green', 'Herbal Green', 'Vegetal Green', 'Bitter Green', 'Metallic', 'Aquatic', 'Green Floral', 'Green Fruity', 'Green Citrus', 'Green Aromatic', 'Green Woody', 'Green Aquatic', 'Green Musky', 'Green Spicy', 'Green Chypre', 'Green Moss'],
+  'Powdery': ['Soft Powdery', 'Dry Powdery', 'Sweet Powdery', 'Cosmetic Powdery', 'Dusty Powdery', 'Powdery Floral', 'Powdery Musky', 'Powdery Woody', 'Powdery Amber', 'Powdery Gourmand', 'Powdery Fruity', 'Powdery Green', 'Powdery Aldehydic', 'Powdery Iris', 'Powdery Violet']
+};
+
 export default function MaterialList({ rawMaterials, setRawMaterials }: Props) {
   const [viewState, setViewState] = useState<'list' | 'edit'>('list');
   const [editingMaterial, setEditingMaterial] = useState<RawMaterial | null>(null);
   
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchType, setSearchType] = useState<'name' | 'type'>('name');
+  const [searchType, setSearchType] = useState<'name' | 'type' | 'family'>('name');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [sortOrder, setSortOrder] = useState<'custom' | 'asc' | 'desc'>('custom');
+  const [groupByType, setGroupByType] = useState(false);
   
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const { confirm, ConfirmModal } = useConfirm();
 
   const tutorialSteps = [
@@ -167,9 +192,7 @@ export default function MaterialList({ rawMaterials, setRawMaterials }: Props) {
   };
 
   const updateEditingMaterial = (field: keyof RawMaterial, value: any) => {
-    if (editingMaterial) {
-      setEditingMaterial({ ...editingMaterial, [field]: value });
-    }
+    setEditingMaterial(prev => prev ? { ...prev, [field]: value } : null);
   };
 
   const getTypes = (m: RawMaterial) => m.types?.length ? m.types : (m.type ? [m.type] : ['raw_material']);
@@ -179,14 +202,37 @@ export default function MaterialList({ rawMaterials, setRawMaterials }: Props) {
     if (selectedCategory !== 'all') {
       result = result.filter(m => getTypes(m).includes(selectedCategory));
     }
-    if (!searchQuery) return result;
-    const query = searchQuery.toLowerCase();
-    return result.filter(m => {
-      if (searchType === 'name') return m.name.toLowerCase().includes(query);
-      if (searchType === 'type') return getTypes(m).some(t => t.toLowerCase().includes(query));
-      return true;
-    });
-  }, [rawMaterials, searchQuery, searchType, selectedCategory]);
+    
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(m => {
+        if (searchType === 'name') return m.name.toLowerCase().includes(query);
+        if (searchType === 'type') return getTypes(m).some(t => t.toLowerCase().includes(query));
+        if (searchType === 'family') return (m.mainFamily?.toLowerCase().includes(query) || m.subFamily?.toLowerCase().includes(query));
+        return true;
+      });
+    }
+
+    result = [...result];
+
+    if (sortOrder === 'asc') {
+      result.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortOrder === 'desc') {
+      result.sort((a, b) => b.name.localeCompare(a.name));
+    }
+
+    if (groupByType) {
+      result.sort((a, b) => {
+        const typeA = getTypes(a)[0] || '';
+        const typeB = getTypes(b)[0] || '';
+        if (typeA < typeB) return -1;
+        if (typeA > typeB) return 1;
+        return 0; // maintain sub-sort when equal
+      });
+    }
+
+    return result;
+  }, [rawMaterials, searchQuery, searchType, selectedCategory, sortOrder, groupByType]);
 
   const solvents = useMemo(() => {
     return rawMaterials.filter(m => getTypes(m).some(t => t === 'solvent' || t === 'alcohol'));
@@ -194,7 +240,7 @@ export default function MaterialList({ rawMaterials, setRawMaterials }: Props) {
 
   // Get unique types for the dropdown
   const availableTypes = useMemo(() => {
-    const defaultTypes = ['raw_material', 'alcohol', 'solvent', 'accord_material'];
+    const defaultTypes = ['raw_material', 'alcohol', 'solvent', 'accord_material', 'natural_oil', 'oil', 'labdanum', 'labdanum_absolute', 'absolute'];
     const existingTypes = rawMaterials.flatMap(m => getTypes(m));
     return Array.from(new Set([...defaultTypes, ...existingTypes]));
   }, [rawMaterials]);
@@ -216,16 +262,30 @@ export default function MaterialList({ rawMaterials, setRawMaterials }: Props) {
 
         <div className="bg-app-card rounded-lg shadow border border-app-border p-6">
           <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-app-muted mb-1">
-                Material Name
-              </label>
-              <input
-                type="text"
-                value={editingMaterial.name || ''}
-                onChange={(e) => updateEditingMaterial('name', e.target.value)}
-                className="w-full px-4 py-2 border border-app-border bg-app-bg text-app-text rounded-md focus:ring-app-accent focus:border-app-accent"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-app-muted mb-1">
+                  Material Name
+                </label>
+                <input
+                  type="text"
+                  value={editingMaterial.name || ''}
+                  onChange={(e) => updateEditingMaterial('name', e.target.value)}
+                  className="w-full px-4 py-2 border border-app-border bg-app-bg text-app-text rounded-md focus:ring-app-accent focus:border-app-accent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-app-muted mb-1">
+                  CAS Number
+                </label>
+                <input
+                  type="text"
+                  value={editingMaterial.casNumber || ''}
+                  onChange={(e) => updateEditingMaterial('casNumber', e.target.value)}
+                  placeholder="e.g., 78-70-6"
+                  className="w-full px-4 py-2 border border-app-border bg-app-bg text-app-text rounded-md focus:ring-app-accent focus:border-app-accent font-mono text-sm"
+                />
+              </div>
             </div>
 
             <div>
@@ -241,6 +301,47 @@ export default function MaterialList({ rawMaterials, setRawMaterials }: Props) {
               />
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-app-muted mb-1">
+                  Main Olfactory Family
+                </label>
+                <select
+                  value={editingMaterial.mainFamily || ''}
+                  onChange={(e) => {
+                    setEditingMaterial(prev => prev ? {
+                      ...prev,
+                      mainFamily: e.target.value,
+                      subFamily: ''
+                    } : null);
+                  }}
+                  className="w-full px-4 py-2 border border-app-border bg-app-bg text-app-text rounded-md focus:ring-app-accent focus:border-app-accent"
+                >
+                  <option value="">-- None --</option>
+                  {Object.keys(OLFACTORY_FAMILIES).map(f => (
+                    <option key={f} value={f}>{f}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-app-muted mb-1">
+                  Olfactory Sub-Family
+                </label>
+                <select
+                  value={editingMaterial.subFamily || ''}
+                  onChange={(e) => updateEditingMaterial('subFamily', e.target.value)}
+                  disabled={!editingMaterial.mainFamily}
+                  className="w-full px-4 py-2 border border-app-border bg-app-bg text-app-text rounded-md focus:ring-app-accent focus:border-app-accent disabled:opacity-50"
+                >
+                  <option value="">-- None --</option>
+                  {editingMaterial.mainFamily && OLFACTORY_FAMILIES[editingMaterial.mainFamily]?.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-app-muted mb-1">
@@ -251,8 +352,11 @@ export default function MaterialList({ rawMaterials, setRawMaterials }: Props) {
                   onChange={(e) => {
                     const newTypes = [...getTypes(editingMaterial)];
                     newTypes[0] = e.target.value;
-                    updateEditingMaterial('types', newTypes);
-                    updateEditingMaterial('type', e.target.value); // For backward compatibility
+                    setEditingMaterial(prev => prev ? {
+                      ...prev,
+                      types: newTypes,
+                      type: e.target.value // backward compatibility
+                    } : null);
                   }}
                   className="w-full px-4 py-2 border border-app-border bg-app-bg text-app-text rounded-md focus:ring-app-accent focus:border-app-accent"
                 >
@@ -429,7 +533,14 @@ export default function MaterialList({ rawMaterials, setRawMaterials }: Props) {
           >
             <option value="name">Name</option>
             <option value="type">Type</option>
+            <option value="family">Family</option>
           </select>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 bg-app-card text-app-text px-4 py-2 border border-app-border rounded-md hover:bg-app-bg transition-colors whitespace-nowrap shadow-sm"
+          >
+            Import File
+          </button>
           <button
             onClick={addMaterial}
             className="flex items-center gap-2 bg-app-accent text-white px-4 py-2 rounded-md hover:bg-app-accent-hover transition-colors whitespace-nowrap shadow-sm"
@@ -440,30 +551,54 @@ export default function MaterialList({ rawMaterials, setRawMaterials }: Props) {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => setSelectedCategory('all')}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-            selectedCategory === 'all'
-              ? 'bg-app-accent text-white'
-              : 'bg-app-bg text-app-muted hover:text-app-text border border-app-border'
-          }`}
-        >
-          All
-        </button>
-        {availableTypes.map(type => (
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+        <div className="flex flex-wrap gap-2 flex-1">
           <button
-            key={type}
-            onClick={() => setSelectedCategory(type)}
+            onClick={() => setSelectedCategory('all')}
             className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-              selectedCategory === type
+              selectedCategory === 'all'
                 ? 'bg-app-accent text-white'
                 : 'bg-app-bg text-app-muted hover:text-app-text border border-app-border'
             }`}
           >
-            {type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+            All
           </button>
-        ))}
+          {availableTypes.map(type => (
+            <button
+              key={type}
+              onClick={() => setSelectedCategory(type)}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                selectedCategory === type
+                  ? 'bg-app-accent text-white'
+                  : 'bg-app-bg text-app-muted hover:text-app-text border border-app-border'
+              }`}
+            >
+              {type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+            </button>
+          ))}
+        </div>
+        
+        <div className="flex items-center gap-3 bg-app-card border border-app-border p-1.5 rounded-lg shrink-0">
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value as any)}
+            className="px-2 py-1 bg-app-bg border border-app-border rounded-md text-app-text text-sm focus:ring-app-accent focus:border-app-accent"
+          >
+            <option value="custom">Manual Sort</option>
+            <option value="asc">Name A-Z</option>
+            <option value="desc">Name Z-A</option>
+          </select>
+          
+          <label className="flex items-center gap-2 text-sm font-medium text-app-text cursor-pointer px-2 border-l border-app-border">
+            <input
+              type="checkbox"
+              checked={groupByType}
+              onChange={(e) => setGroupByType(e.target.checked)}
+              className="rounded border-app-border text-app-accent focus:ring-app-accent"
+            />
+            Group
+          </label>
+        </div>
       </div>
 
       <div className="bg-app-card rounded-lg shadow border border-app-border">
@@ -502,23 +637,37 @@ export default function MaterialList({ rawMaterials, setRawMaterials }: Props) {
                 <div className="col-span-1 flex flex-col items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                   <button 
                     onClick={(e) => moveMaterial(e, material.id, 'up')}
-                    disabled={originalIndex <= 0}
+                    disabled={originalIndex <= 0 || sortOrder !== 'custom' || groupByType}
                     className="p-1 text-app-muted hover:text-app-accent disabled:opacity-30 hover:bg-app-accent/10 rounded"
+                    title={sortOrder !== 'custom' || groupByType ? 'Manual sort disabled' : 'Move up'}
                   >
                     <ArrowUp size={14} />
                   </button>
                   <button 
                     onClick={(e) => moveMaterial(e, material.id, 'down')}
-                    disabled={originalIndex === -1 || originalIndex >= rawMaterials.length - 1}
+                    disabled={originalIndex === -1 || originalIndex >= rawMaterials.length - 1 || sortOrder !== 'custom' || groupByType}
                     className="p-1 text-app-muted hover:text-app-accent disabled:opacity-30 hover:bg-app-accent/10 rounded"
+                    title={sortOrder !== 'custom' || groupByType ? 'Manual sort disabled' : 'Move down'}
                   >
                     <ArrowDown size={14} />
                   </button>
                 </div>
                 <div className="col-span-3 font-medium text-app-text">
                   <div>{material.name}</div>
-                  {material.character && (
+                  {material.casNumber && (
+                    <div className="text-[10px] bg-app-bg border border-app-border px-1.5 py-0.5 rounded inline-block text-app-muted mt-1 font-mono">CAS: {material.casNumber}</div>
+                  )}
+                  {material.character && !material.casNumber && (
                     <div className="text-xs text-app-muted mt-0.5">{material.character}</div>
+                  )}
+                  {material.character && material.casNumber && (
+                    <div className="text-xs text-app-muted mt-0.5">{material.character}</div>
+                  )}
+                  {(material.mainFamily || material.subFamily) && (
+                    <div className="text-[10px] text-app-accent/80 font-medium mt-0.5 flex flex-wrap gap-1">
+                      {material.mainFamily}
+                      {material.subFamily ? <span className="opacity-60">› {material.subFamily}</span> : null}
+                    </div>
                   )}
                 </div>
                 <div className="col-span-4 flex flex-wrap gap-1">
@@ -591,6 +740,14 @@ export default function MaterialList({ rawMaterials, setRawMaterials }: Props) {
         onClose={() => setShowTutorial(false)}
         title="Material List Guide"
         steps={tutorialSteps}
+      />
+      <ImportMaterialsModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        existingMaterials={rawMaterials}
+        onImport={(imported) => {
+          setRawMaterials(prev => [...prev, ...imported]);
+        }}
       />
     </div>
   );

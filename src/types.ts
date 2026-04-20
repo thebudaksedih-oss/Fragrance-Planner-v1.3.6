@@ -10,10 +10,13 @@ export type AppSettings = {
 export type RawMaterial = {
   id: string;
   name: string;
+  casNumber?: string;
   description?: string;
   character?: 'Top Note' | 'Heart Note' | 'Base Note' | string;
   type: string; // Deprecated, use types
   types?: string[]; // e.g. ['raw_material', 'solvent']
+  mainFamily?: string;
+  subFamily?: string;
   isDiluted: boolean;
   dilutionPercentage?: number;
   solventId?: string;
