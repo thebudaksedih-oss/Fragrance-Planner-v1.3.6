@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Upload, Save, AlertTriangle, FileText, Check, Copy } from 'lucide-react';
+import { X, Upload, Save, AlertTriangle, FileText, Check, Copy, HelpCircle, Info } from 'lucide-react';
 import { RawMaterial } from '../types';
 import { extractDataFromSheet } from '../lib/sheetUtils';
 import { useConfirm } from '../hooks/useConfirm';
@@ -13,6 +13,7 @@ interface Props {
 
 export default function ImportMaterialsModal({ isOpen, onClose, onImport, existingMaterials }: Props) {
   const [importMode, setImportMode] = useState<'upload' | 'confirm'>('upload');
+  const [showHelp, setShowHelp] = useState(false);
   const [parsedMaterials, setParsedMaterials] = useState<(RawMaterial & { isDuplicate: boolean, keepDuplicate: boolean })[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -60,7 +61,7 @@ export default function ImportMaterialsModal({ isOpen, onClose, onImport, existi
         
         const stringRow = row.map(cell => String(cell || '').toLowerCase().trim());
         const hasName = stringRow.findIndex(cell => cell && (cell.includes('name') || cell.includes('commercial name') || cell.includes('ingredient')));
-        const hasCas = stringRow.findIndex(cell => cell && cell.includes('cas'));
+        const hasCas = stringRow.findIndex(cell => cell && (cell.includes('cas') || cell.includes('cas no')));
         
         if (hasName !== -1) {
             headerRowIndex = i;
@@ -68,7 +69,7 @@ export default function ImportMaterialsModal({ isOpen, onClose, onImport, existi
             casIdx = hasCas;
             
             familyIdx = stringRow.findIndex(cell => cell && (cell === 'family' || cell.includes('olfactory') || cell.includes('family')));
-            typeIdx = stringRow.findIndex(cell => cell && (cell === 'type' || cell === 'category' || cell === 'item type'));
+            typeIdx = stringRow.findIndex(cell => cell && (cell === 'type' || cell === 'category' || cell === 'item type' || cell === 'material type' || cell === 'perfume type'));
             
             if (familyIdx === -1 && typeIdx === -1) {
                 const combinedIdx = stringRow.findIndex(cell => cell && (cell.includes('type') || cell.includes('family')));
@@ -132,10 +133,11 @@ export default function ImportMaterialsModal({ isOpen, onClose, onImport, existi
       let character = '';
       if (typeInput) {
          const tl = typeInput.toLowerCase();
-         if (tl.includes('essential oil') || tl.includes('natural oil')) type = 'natural_oil';
-         else if (tl.includes('absolute')) type = 'absolute';
-         else if (tl.includes('labdanum') && tl.includes('absolute')) type = 'labdanum_absolute';
+         // Specific combinations first
+         if (tl.includes('labdanum') && tl.includes('absolute')) type = 'labdanum_absolute';
          else if (tl.includes('labdanum')) type = 'labdanum';
+         else if (tl.includes('essential oil') || tl.includes('natural oil')) type = 'natural_oil';
+         else if (tl.includes('absolute')) type = 'absolute';
          else if (tl.includes('oil')) type = 'oil';
          else if (tl.includes('solvent')) type = 'solvent';
          else if (tl.includes('resinoid')) type = 'resinoid';
@@ -243,21 +245,83 @@ export default function ImportMaterialsModal({ isOpen, onClose, onImport, existi
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-app-bg max-w-2xl w-full rounded-2xl shadow-2xl border border-app-border overflow-hidden flex flex-col max-h-[90vh]">
         <div className="p-6 border-b border-app-border flex justify-between items-center bg-app-card sticky top-0">
-          <div>
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <Upload className="text-app-accent" />
-              Import Materials (Spreadsheet)
-            </h2>
-            <p className="text-xs text-app-muted mt-1 uppercase tracking-wider font-bold">
-              Cannot be undone. Please ensure you have backups.
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="bg-app-accent/10 p-2 rounded-lg">
+              <Upload className="text-app-accent" size={24} />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                Import Materials
+              </h2>
+              <p className="text-xs text-app-muted uppercase tracking-wider font-bold">
+                Spreadsheet / CSV / Excel
+              </p>
+            </div>
           </div>
-          <button onClick={handleClose} className="p-2 hover:bg-app-bg rounded-full transition-colors text-app-muted">
-            <X size={24} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setShowHelp(!showHelp)}
+              className={`p-2 rounded-full transition-colors ${showHelp ? 'bg-app-accent text-white' : 'hover:bg-app-bg text-app-muted'}`}
+              title="Help & Format Example"
+            >
+              <HelpCircle size={22} />
+            </button>
+            <button onClick={handleClose} className="p-2 hover:bg-app-bg rounded-full transition-colors text-app-muted">
+              <X size={24} />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
+          {showHelp && (
+            <div className="mb-8 bg-app-bg border border-app-border rounded-xl overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300">
+              <div className="p-4 bg-app-card border-b border-app-border flex items-center gap-2 text-app-accent">
+                <Info size={18} />
+                <span className="font-bold text-sm">Perfect Import Format</span>
+              </div>
+              <div className="p-4">
+                <p className="text-sm text-app-text mb-4">
+                  For best results, your spreadsheet should have these headers in the first row:
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left border-collapse bg-app-card rounded-lg overflow-hidden border border-app-border">
+                    <thead className="bg-app-bg text-app-muted border-b border-app-border">
+                      <tr>
+                        <th className="p-2 font-bold border-r border-app-border">Name</th>
+                        <th className="p-2 font-bold border-r border-app-border">Cas No</th>
+                        <th className="p-2 font-bold border-r border-app-border">Family</th>
+                        <th className="p-2 font-bold">Material Type</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-app-text">
+                      <tr className="border-b border-app-border">
+                        <td className="p-2 border-r border-app-border">Cedarwood Atlas</td>
+                        <td className="p-2 border-r border-app-border">8023-85-6</td>
+                        <td className="p-2 border-r border-app-border">Woody</td>
+                        <td className="p-2 text-app-accent font-medium italic">Natural Oil</td>
+                      </tr>
+                      <tr className="border-b border-app-border">
+                        <td className="p-2 border-r border-app-border font-medium">...</td>
+                        <td className="p-2 border-r border-app-border font-medium">...</td>
+                        <td className="p-2 border-r border-app-border font-medium">...</td>
+                        <td className="p-2 text-app-accent font-medium italic">Oil</td>
+                      </tr>
+                      <tr className="border-b border-app-border">
+                        <td className="p-2 border-r border-app-border">Cistus Absolute</td>
+                        <td className="p-2 border-r border-app-border">8016-26-0</td>
+                        <td className="p-2 border-r border-app-border">Ambery</td>
+                        <td className="p-2 text-app-accent font-medium italic">Absolute</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <span className="text-[10px] bg-app-card border border-app-border px-2 py-1 rounded text-app-muted">Detects: Absolute, Natural Oil, Resinoid, Labdanum...</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {importMode === 'upload' && (
             <div className="space-y-6 text-center">
               <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 p-4 rounded-xl flex items-start text-left gap-3">
