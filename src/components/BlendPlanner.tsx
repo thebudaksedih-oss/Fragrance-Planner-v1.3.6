@@ -1124,7 +1124,8 @@ export default function BlendPlanner({ formulas = [], fragrances = [], setFragra
         }
         const mats = (formula.materials || []).map(m => getRawMaterialName(m.rawMaterialId));
         const alcs = (formula.alcohols || []).map(a => getRawMaterialName(a.rawMaterialId));
-        return [...mats, ...alcs];
+        const oils = formula.isHybrid ? (formula.fragranceOils || []).map(o => fragrances.find(f => f.id === o.fragranceId)?.name || 'Unknown Fragrance') : [];
+        return [...mats, ...alcs, ...oils];
       })
     ));
 
@@ -1360,7 +1361,7 @@ export default function BlendPlanner({ formulas = [], fragrances = [], setFragra
                         return (
                           <tr key={entry.id} className="hover:bg-app-bg transition-colors">
                             <td className="py-3 px-4 font-medium text-app-text">
-                              {formula?.type === 'accord' ? (entry.customFragranceName || '~') : (fragrance?.name || 'Unknown')}
+                              {formula?.type === 'accord' ? (entry.customFragranceName || '~') : (fragrance?.name || '-')}
                             </td>
                             <td className="py-3 px-4 text-app-muted">{formula?.name || 'Unknown'}</td>
                             <td className="py-3 px-4 text-right text-app-muted">
@@ -1369,7 +1370,7 @@ export default function BlendPlanner({ formulas = [], fragrances = [], setFragra
                                 : (detailVolumeUnit === 'l' ? `${((entry.capacityMl || 0) / 1000).toFixed(detailDecimals)} L` : `${(entry.capacityMl || 0).toFixed(detailDecimals)} mL`)}
                             </td>
                             <td className="py-3 px-4 text-right text-app-accent font-medium">{oilDisplay}</td>
-                            <td className="py-3 px-4 text-app-muted italic">{ogName}</td>
+                            <td className="py-3 px-4 text-app-muted italic">{fragrance?.originalScent || '-'}</td>
                             
                             {uniqueMaterials.map(matName => {
                               let matPct = 0;
@@ -1394,11 +1395,14 @@ export default function BlendPlanner({ formulas = [], fragrances = [], setFragra
                                 } else {
                                   const mList = formula.materials?.filter(x => getRawMaterialName(x.rawMaterialId) === matName) || [];
                                   const aList = formula.alcohols?.filter(x => getRawMaterialName(x.rawMaterialId) === matName) || [];
+                                  const oList = formula.isHybrid ? (formula.fragranceOils?.filter(x => (fragrances.find(f => f.id === x.fragranceId)?.name || 'Unknown Fragrance') === matName) || []) : [];
+                                  
                                   mList.forEach(m => matPct += Number(m.percentage));
                                   aList.forEach(a => {
                                     const idx = formula.alcohols?.indexOf(a) ?? -1;
                                     matPct += getAlcoholPercentage(formula, a, idx);
                                   });
+                                  oList.forEach(o => matPct += Number(o.percentage));
                                 }
                               }
                               totalPct += matPct;

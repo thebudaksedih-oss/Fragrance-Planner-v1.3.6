@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useDeferredValue } from 'react';
 import { Plus, Trash2, Search, Save, X, ChevronLeft, MoreVertical, Copy, CheckSquare, ArrowUp, ArrowDown, HelpCircle, Package, Settings, List, MousePointer2 } from 'lucide-react';
 import { Equipment } from '../types';
 import { useConfirm } from '../hooks/useConfirm';
@@ -149,8 +149,10 @@ export default function EquipmentList({ equipments, setEquipments }: Props) {
     setEquipments(prev => [...prev, ...importedEquipments]);
   };
 
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   const filteredEquipments = equipments.filter((equipment) => {
-    const query = searchQuery.toLowerCase();
+    const query = deferredSearchQuery.toLowerCase();
     if (searchType === 'name') {
       return equipment.name.toLowerCase().includes(query);
     } else {

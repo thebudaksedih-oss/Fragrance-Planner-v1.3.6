@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useDeferredValue } from 'react';
 import { Plus, Trash2, Save, X, ChevronLeft, Edit2, MoreVertical, Copy, CheckSquare, ArrowUp, ArrowDown, HelpCircle, Beaker, Zap, Calculator, Layers, GitBranch, History, ArrowLeftRight, ChevronDown, Search } from 'lucide-react';
 import { Formula, Material, FragranceOil, RawMaterial, Fragrance } from '../types';
 import { useConfirm } from '../hooks/useConfirm';
@@ -497,8 +497,22 @@ export default function FormulaList({ formulas, setFormulas, rawMaterials, setRa
 
   const getFormulaSummary = (formula: Formula) => {
     const items: string[] = [];
+    
+    if (formula.type === 'accord') {
+      (formula.materials || []).forEach(m => {
+        const rm = rawMaterials.find(r => r.id === m.rawMaterialId);
+        if (rm) items.push(rm.name);
+      });
+      (formula.accords || []).forEach(a => {
+        const f = formulas.find(fr => fr.id === a.accordId);
+        if (f) items.push(f.name);
+      });
+      if (items.length <= 3) return items.join(', ');
+      return `${items.slice(0, 3).join(', ')} ...`;
+    }
+
     if (formula.isHybrid) {
-      formula.fragranceOils.forEach(o => {
+      (formula.fragranceOils || []).forEach(o => {
         const f = fragrances.find(fr => fr.id === o.fragranceId);
         if (f) items.push(f.name);
       });
@@ -506,12 +520,12 @@ export default function FormulaList({ formulas, setFormulas, rawMaterials, setRa
       items.push('Fragrance Oil');
     }
     
-    formula.materials.forEach(m => {
+    (formula.materials || []).forEach(m => {
       const rm = rawMaterials.find(r => r.id === m.rawMaterialId);
       if (rm) items.push(rm.name);
     });
     
-    formula.alcohols.forEach(a => {
+    (formula.alcohols || []).forEach(a => {
       const rm = rawMaterials.find(r => r.id === a.rawMaterialId);
       if (rm) items.push(rm.name);
     });

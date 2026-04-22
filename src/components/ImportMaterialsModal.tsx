@@ -283,34 +283,34 @@ export default function ImportMaterialsModal({ isOpen, onClose, onImport, existi
                 <p className="text-sm text-app-text mb-4">
                   For best results, your spreadsheet should have these headers in the first row:
                 </p>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-left border-collapse bg-app-card rounded-lg overflow-hidden border border-app-border">
+                <div className="overflow-x-auto min-w-0 w-full pb-2">
+                  <table className="w-full text-xs text-left border-collapse bg-app-card rounded-lg overflow-hidden border border-app-border min-w-max">
                     <thead className="bg-app-bg text-app-muted border-b border-app-border">
                       <tr>
-                        <th className="p-2 font-bold border-r border-app-border">Name</th>
-                        <th className="p-2 font-bold border-r border-app-border">Cas No</th>
-                        <th className="p-2 font-bold border-r border-app-border">Family</th>
-                        <th className="p-2 font-bold">Material Type</th>
+                        <th className="p-2 font-bold border-r border-app-border whitespace-nowrap">Name</th>
+                        <th className="p-2 font-bold border-r border-app-border whitespace-nowrap">Cas No</th>
+                        <th className="p-2 font-bold border-r border-app-border whitespace-nowrap">Family</th>
+                        <th className="p-2 font-bold whitespace-nowrap">Material Type</th>
                       </tr>
                     </thead>
                     <tbody className="text-app-text">
                       <tr className="border-b border-app-border">
-                        <td className="p-2 border-r border-app-border">Cedarwood Atlas</td>
-                        <td className="p-2 border-r border-app-border">8023-85-6</td>
-                        <td className="p-2 border-r border-app-border">Woody</td>
-                        <td className="p-2 text-app-accent font-medium italic">Natural Oil</td>
+                        <td className="p-2 border-r border-app-border whitespace-nowrap">Cedarwood Atlas</td>
+                        <td className="p-2 border-r border-app-border whitespace-nowrap">8023-85-6</td>
+                        <td className="p-2 border-r border-app-border whitespace-nowrap">Woody</td>
+                        <td className="p-2 text-app-accent font-medium italic whitespace-nowrap">Natural Oil</td>
                       </tr>
                       <tr className="border-b border-app-border">
-                        <td className="p-2 border-r border-app-border font-medium">...</td>
-                        <td className="p-2 border-r border-app-border font-medium">...</td>
-                        <td className="p-2 border-r border-app-border font-medium">...</td>
-                        <td className="p-2 text-app-accent font-medium italic">Oil</td>
+                        <td className="p-2 border-r border-app-border font-medium text-center">...</td>
+                        <td className="p-2 border-r border-app-border font-medium text-center">...</td>
+                        <td className="p-2 border-r border-app-border font-medium text-center">...</td>
+                        <td className="p-2 text-app-accent font-medium italic whitespace-nowrap">Oil</td>
                       </tr>
                       <tr className="border-b border-app-border">
-                        <td className="p-2 border-r border-app-border">Cistus Absolute</td>
-                        <td className="p-2 border-r border-app-border">8016-26-0</td>
-                        <td className="p-2 border-r border-app-border">Ambery</td>
-                        <td className="p-2 text-app-accent font-medium italic">Absolute</td>
+                        <td className="p-2 border-r border-app-border whitespace-nowrap">Cistus Absolute</td>
+                        <td className="p-2 border-r border-app-border whitespace-nowrap">8016-26-0</td>
+                        <td className="p-2 border-r border-app-border whitespace-nowrap">Ambery</td>
+                        <td className="p-2 text-app-accent font-medium italic whitespace-nowrap">Absolute</td>
                       </tr>
                     </tbody>
                   </table>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useDeferredValue } from 'react';
 import { Package, Plus, Search, ChevronRight, History, Trash2, Edit2, ArrowUpRight, ArrowDownLeft, Info, Box, X, HelpCircle, Layers } from 'lucide-react';
 import { InventoryItem, InventoryContainer, InventoryLog, RawMaterial, Equipment, Fragrance } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -47,13 +47,15 @@ export default function InventoryManager({ inventory, setInventory, rawMaterials
     note: ''
   });
 
+  const deferredSearchTerm = useDeferredValue(searchTerm);
+
   const filteredInventory = useMemo(() => {
     return inventory.filter(item => {
-      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = item.name.toLowerCase().includes(deferredSearchTerm.toLowerCase());
       const matchesType = filterType === 'all' || item.itemType === filterType;
       return matchesSearch && matchesType;
     });
-  }, [inventory, searchTerm, filterType]);
+  }, [inventory, deferredSearchTerm, filterType]);
 
   const handleAddItem = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

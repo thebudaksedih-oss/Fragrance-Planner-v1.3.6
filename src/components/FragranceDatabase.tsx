@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useDeferredValue } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Trash2, Edit2, Search, X, ChevronLeft, MoreVertical, Copy, CheckSquare, Palette, ArrowUp, ArrowDown, Sparkles, ArrowRight, ArrowDownRight, ArrowUpRight, HelpCircle, Database, Layout, LayoutList, Eye, Pencil } from 'lucide-react';
 import { Fragrance, UserTheme } from '../types';
@@ -673,10 +673,12 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
     });
   };
 
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   const filteredFragrances = useMemo(() => {
     let result = fragrances;
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    if (deferredSearchQuery) {
+      const query = deferredSearchQuery.toLowerCase();
       result = fragrances.filter(f => {
         if (searchType === 'name') {
           return f.name.toLowerCase().includes(query) || (f.house || '').toLowerCase().includes(query);
@@ -696,7 +698,7 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
       });
     }
     return result;
-  }, [fragrances, searchQuery, searchType]);
+  }, [fragrances, deferredSearchQuery, searchType]);
 
   const groupedFragrances = useMemo<Record<string, Fragrance[]>>(() => {
     if (groupBy === 'none') {

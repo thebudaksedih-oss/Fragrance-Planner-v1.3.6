@@ -128,7 +128,7 @@ export default function Settings({ settings, setSettings }: SettingsProps) {
           </div>
           
           <div className="pt-6 border-t border-app-border flex justify-between items-center">
-            <span className="text-[11px] font-black text-app-muted uppercase tracking-[0.25em]">FRAGRANCE PLANNER V1.6.1</span>
+            <span className="text-[11px] font-black text-app-muted uppercase tracking-[0.25em]">FRAGRANCE PLANNER V1.6.2</span>
             <button
               onClick={handleSave}
               className="flex items-center gap-2 px-8 py-3 bg-app-accent text-white rounded-xl hover:bg-app-accent-hover active:scale-95 transition-all font-bold shadow-md"

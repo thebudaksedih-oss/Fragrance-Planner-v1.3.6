@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import { Plus, Trash2, Search, Save, X, ChevronLeft, MoreVertical, Copy, CheckSquare, ArrowUp, ArrowDown, HelpCircle, FlaskConical, Filter, MousePointer2 } from 'lucide-react';
 import { RawMaterial } from '../types';
 import { useConfirm } from '../hooks/useConfirm';
@@ -195,6 +195,8 @@ export default function MaterialList({ rawMaterials, setRawMaterials }: Props) {
     setEditingMaterial(prev => prev ? { ...prev, [field]: value } : null);
   };
 
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   const getTypes = (m: RawMaterial) => m.types?.length ? m.types : (m.type ? [m.type] : ['raw_material']);
 
   const filteredMaterials = useMemo(() => {
@@ -203,8 +205,8 @@ export default function MaterialList({ rawMaterials, setRawMaterials }: Props) {
       result = result.filter(m => getTypes(m).includes(selectedCategory));
     }
     
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    if (deferredSearchQuery) {
+      const query = deferredSearchQuery.toLowerCase();
       result = result.filter(m => {
         if (searchType === 'name') return m.name.toLowerCase().includes(query);
         if (searchType === 'type') return getTypes(m).some(t => t.toLowerCase().includes(query));
@@ -232,7 +234,7 @@ export default function MaterialList({ rawMaterials, setRawMaterials }: Props) {
     }
 
     return result;
-  }, [rawMaterials, searchQuery, searchType, selectedCategory, sortOrder, groupByType]);
+  }, [rawMaterials, deferredSearchQuery, searchType, selectedCategory, sortOrder, groupByType]);
 
   const solvents = useMemo(() => {
     return rawMaterials.filter(m => getTypes(m).some(t => t === 'solvent' || t === 'alcohol'));

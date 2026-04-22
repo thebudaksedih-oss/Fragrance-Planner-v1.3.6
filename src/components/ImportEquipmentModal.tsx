@@ -160,7 +160,7 @@ Magnetic Stirrer\tEquipment\tOne Size\tFor mixing compounds`;
                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -translate-y-16 translate-x-16 blur-2xl pointer-events-none"></div>
                 <div className="flex items-start gap-3 relative z-10">
                     <Info className="text-blue-500 shrink-0 mt-0.5" size={20} />
-                    <div>
+                    <div className="min-w-0 flex-1">
                         <h4 className="font-semibold text-blue-500 mb-1">How to perfectly format your import file</h4>
                         <p className="text-sm text-app-text/90 mb-3">
                             The system will try to auto-detect your columns if they have the right header names. Your spreadsheet (Excel or CSV) should ideally have a header row with the following column names:
@@ -187,7 +187,7 @@ Magnetic Stirrer\tEquipment\tOne Size\tFor mixing compounds`;
                                 <p className="text-xs text-app-muted mt-1">Optional. Details.</p>
                             </div>
                         </div>
-                        <div className="mt-4 bg-app-card border border-app-border p-3 rounded-md">
+                        <div className="mt-4 bg-app-card border border-app-border p-3 rounded-md min-w-0">
                            <div className="flex justify-between items-center mb-2">
                                <span className="text-sm font-medium text-app-text">Example Data:</span>
                                <button 
@@ -195,12 +195,12 @@ Magnetic Stirrer\tEquipment\tOne Size\tFor mixing compounds`;
                                     navigator.clipboard.writeText(sampleData);
                                     alert("Copied sample data to clipboard! Paste it into Excel.");
                                 }}
-                                className="flex items-center gap-1.5 text-xs bg-app-bg hover:bg-app-accent hover:text-white border border-app-border px-2 py-1 rounded transition-colors text-app-muted"
+                                className="flex items-center gap-1.5 text-xs bg-app-bg hover:bg-app-accent hover:text-white border border-app-border px-2 py-1 rounded transition-colors text-app-muted whitespace-nowrap"
                                 >
-                                    <Copy size={12} /> Copy to Clipboard
+                                    <Copy size={12} className="shrink-0" /> <span className="hidden sm:inline">Copy to Clipboard</span><span className="sm:hidden">Copy</span>
                                </button>
                            </div>
-                           <pre className="text-xs text-app-muted overflow-x-auto p-2 bg-app-bg rounded border border-app-border">
+                           <pre className="text-xs text-app-muted overflow-x-auto p-2 bg-app-bg rounded border border-app-border min-w-0 w-full whitespace-pre">
 {sampleData}
                            </pre>
                         </div>
