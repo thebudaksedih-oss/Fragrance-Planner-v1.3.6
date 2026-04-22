@@ -1301,9 +1301,10 @@ if (viewState === 'compare' && compareIds.length === 2) {
     const getAllIngredients = () => {
       const ingredients = new Set<string>();
       [formulaA, formulaB].forEach(f => {
-        f.fragranceOils.forEach(o => ingredients.add(`oil_${o.fragranceId}`));
-        f.materials.forEach(m => ingredients.add(`mat_${m.rawMaterialId}`));
-        f.alcohols.forEach(a => ingredients.add(`alc_${a.rawMaterialId}`));
+        (f.fragranceOils || []).forEach(o => ingredients.add(`oil_${o.fragranceId}`));
+        (f.materials || []).forEach(m => ingredients.add(`mat_${m.rawMaterialId}`));
+        (f.alcohols || []).forEach(a => ingredients.add(`alc_${a.rawMaterialId}`));
+        (f.accords || []).forEach(c => ingredients.add(`acc_${c.accordId}`));
       });
       return Array.from(ingredients);
     };
@@ -1322,38 +1323,80 @@ if (viewState === 'compare' && compareIds.length === 2) {
       if (id.startsWith('alc_')) {
         const rid = id.replace('alc_', '');
         const rm = rawMaterials.find(r => r.id === rid);
-        return { name: rm?.name || 'Unknown Alcohol', type: 'Alcohol/Solvent' };
+        return { name: rm?.name || 'Unknown Solvent', type: 'Solvent/Alcohol' };
+      }
+      if (id.startsWith('acc_')) {
+        const accId = id.replace('acc_', '');
+        const f = formulas.find(fr => fr.id === accId && fr.type === 'accord');
+        return { name: f?.name || 'Unknown Accord', type: 'Accord' };
       }
       return { name: 'Unknown', type: 'Unknown' };
     };
 
     const getPercentage = (formula: Formula, id: string) => {
+      if (!formula) return 0;
+
+      // Helper for Accords: they use amount instead of percentage for their materials and nested accords
+      const getAccordOverallTotal = (f: Formula) => {
+        let total = 0;
+        (f.materials || []).forEach(m => total += (Number(m.amount) || 0));
+        (f.accords || []).forEach(a => total += (Number(a.amount) || 0));
+        return total;
+      };
+
       if (id.startsWith('oil_')) {
         const fid = id.replace('oil_', '');
-        const oil = formula.fragranceOils.find(o => o.fragranceId === fid);
+        const oil = (formula.fragranceOils || []).find(o => o.fragranceId === fid);
+        // Accords don't use oils generally, but if they did we'd fall back to percentage
         return oil ? Number(oil.percentage) : 0;
       }
       if (id.startsWith('mat_')) {
         const rid = id.replace('mat_', '');
-        const mat = formula.materials.find(m => m.rawMaterialId === rid);
-        return mat ? Number(mat.percentage) : 0;
+        const mat = (formula.materials || []).find(m => m.rawMaterialId === rid);
+        if (!mat) return 0;
+        
+        if (formula.type === 'accord') {
+           const totalAmounts = getAccordOverallTotal(formula);
+           return totalAmounts > 0 ? (Number(mat.amount || 0) / totalAmounts) * 100 : 0;
+        }
+        return Number(mat.percentage) || 0;
       }
       if (id.startsWith('alc_')) {
         const rid = id.replace('alc_', '');
-        const alc = formula.alcohols.find(a => a.rawMaterialId === rid);
+        const alc = (formula.alcohols || []).find(a => a.rawMaterialId === rid);
         
-        // Handle auto-calc for last alcohol
-        const idx = formula.alcohols.findIndex(a => a.rawMaterialId === rid);
-        if (idx === formula.alcohols.length - 1) {
-          const oilsTotal = formula.fragranceOils.reduce((sum, o) => sum + (Number(o.percentage) || 0), 0);
-          const materialsTotal = formula.materials.reduce((sum, m) => sum + (Number(m.percentage) || 0), 0);
-          const otherAlcoholsTotal = formula.alcohols.slice(0, -1).reduce((sum, a) => sum + (Number(a.percentage) || 0), 0);
-          return Math.max(0, 100 - oilsTotal - materialsTotal - otherAlcoholsTotal);
+        // Handle auto-calc for last alcohol - MUST ensure it actually exists in this formula!
+        const idx = (formula.alcohols || []).findIndex(a => a.rawMaterialId === rid);
+        if (idx !== -1 && idx === (formula.alcohols || []).length - 1) {
+          const oilsTotal = (formula.fragranceOils || []).reduce((sum, o) => sum + (Number(o.percentage) || 0), 0);
+          const materialsTotal = (formula.materials || []).reduce((sum, m) => sum + (Number(m.percentage) || 0), 0);
+          // Standard formulas don't typically use accords array, but if they did, subtract it too
+          const accordsTotal = (formula.accords || []).reduce((sum, ac) => sum + (Number(ac.amount || 0) || 0), 0);
+          const otherAlcoholsTotal = (formula.alcohols || []).slice(0, -1).reduce((sum, a) => sum + (Number(a.percentage) || 0), 0);
+          return Math.max(0, 100 - oilsTotal - materialsTotal - accordsTotal - otherAlcoholsTotal);
         }
         return alc ? Number(alc.percentage) : 0;
       }
+      if (id.startsWith('acc_')) {
+        const accId = id.replace('acc_', '');
+        const acc = (formula.accords || []).find(a => a.accordId === accId);
+        if (!acc) return 0;
+
+        if (formula.type === 'accord') {
+          const totalAmounts = getAccordOverallTotal(formula);
+          return totalAmounts > 0 ? (Number(acc.amount || 0) / totalAmounts) * 100 : 0;
+        }
+        // Fallback or standard percentage if somehow added
+        return Number(acc.amount) || 0; 
+      }
       return 0;
     };
+
+    const allIngs = getAllIngredients().sort((a, b) => {
+      const infoA = getIngredientInfo(a);
+      const infoB = getIngredientInfo(b);
+      return infoA.name.localeCompare(infoB.name);
+    });
 
     return (
       <>
@@ -1368,76 +1411,61 @@ if (viewState === 'compare' && compareIds.length === 2) {
             </button>
             <h2 className="text-2xl font-bold text-app-text">Formula Comparison</h2>
           </div>
-          <div className="flex items-center gap-2 bg-app-card border border-app-border px-4 py-2 rounded-lg text-sm font-medium text-app-muted">
-            <ArrowLeftRight size={18} className="text-app-accent" />
-            Comparing {formulaA.name} vs {formulaB.name}
-          </div>
+          <button 
+             onClick={() => { setViewState('list'); setIsCompareMode(false); setCompareIds([]); }}
+             className="px-4 py-2 border border-app-border text-sm font-medium rounded-md hover:bg-app-bg transition-colors"
+          >
+             Finish Comparing
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-app-card rounded-xl shadow-sm border border-app-border p-6">
-            <h3 className="text-lg font-bold text-app-text mb-2">{formulaA.name}</h3>
-            {formulaA.versionNote && (
-              <p className="text-sm text-app-muted italic mb-4">"{formulaA.versionNote}"</p>
-            )}
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs font-bold text-app-muted uppercase tracking-wider">
-                <span>Ingredient</span>
-                <span>Percentage</span>
-              </div>
-              {getAllIngredients().map(id => {
-                const pct = getPercentage(formulaA, id);
-                const info = getIngredientInfo(id);
-                if (pct === 0) return null;
-                return (
-                  <div key={id} className="flex justify-between items-center py-2 border-b border-app-border last:border-0">
-                    <div>
-                      <div className="text-sm font-medium text-app-text">{info.name}</div>
-                      <div className="text-[10px] text-app-muted">{info.type}</div>
-                    </div>
-                    <div className="font-bold text-app-accent">{pct.toFixed(2)}%</div>
-                  </div>
-                );
-              })}
-            </div>
+        <div className="bg-app-card rounded-xl shadow-sm border border-app-border overflow-hidden">
+          <div className="grid grid-cols-12 gap-4 p-4 border-b border-app-border bg-app-bg/50">
+             <div className="col-span-4 font-bold text-app-text">Ingredient</div>
+             <div className="col-span-3 font-bold text-app-text text-right">
+                <span className="text-sm block truncate" title={formulaA.name}>{formulaA.name}</span>
+                {formulaA.versionNote && <span className="text-[10px] text-app-muted font-normal block truncate">"{formulaA.versionNote}"</span>}
+             </div>
+             <div className="col-span-3 font-bold text-app-text text-right px-2 border-l border-app-border">
+                <span className="text-sm block truncate" title={formulaB.name}>{formulaB.name}</span>
+                {formulaB.versionNote && <span className="text-[10px] text-app-muted font-normal block truncate">"{formulaB.versionNote}"</span>}
+             </div>
+             <div className="col-span-2 font-bold text-app-muted text-right uppercase tracking-wider text-xs flex items-center justify-end">Diff</div>
           </div>
-
-          <div className="bg-app-card rounded-xl shadow-sm border border-app-border p-6">
-            <h3 className="text-lg font-bold text-app-text mb-2">{formulaB.name}</h3>
-            {formulaB.versionNote && (
-              <p className="text-sm text-app-muted italic mb-4">"{formulaB.versionNote}"</p>
-            )}
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs font-bold text-app-muted uppercase tracking-wider">
-                <span>Ingredient</span>
-                <span>Percentage</span>
-              </div>
-              {getAllIngredients().map(id => {
-                const pctB = getPercentage(formulaB, id);
-                const pctA = getPercentage(formulaA, id);
-                const info = getIngredientInfo(id);
-                if (pctB === 0 && pctA === 0) return null;
-                
-                const diff = pctB - pctA;
-
-                return (
-                  <div key={id} className="flex justify-between items-center py-2 border-b border-app-border last:border-0">
-                    <div>
-                      <div className="text-sm font-medium text-app-text">{info.name}</div>
-                      <div className="text-[10px] text-app-muted">{info.type}</div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {diff !== 0 && (
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${diff > 0 ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
-                          {diff > 0 ? '+' : ''}{diff.toFixed(2)}%
-                        </span>
-                      )}
-                      <div className="font-bold text-app-accent">{pctB.toFixed(2)}%</div>
-                    </div>
+          <div className="divide-y divide-app-border">
+            {allIngs.map(id => {
+              const pctA = getPercentage(formulaA, id);
+              const pctB = getPercentage(formulaB, id);
+              const info = getIngredientInfo(id);
+              
+              if (pctA === 0 && pctB === 0) return null;
+              
+              const diff = pctB - pctA;
+              
+              return (
+                <div key={id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-app-bg/30 transition-colors">
+                  <div className="col-span-4">
+                    <div className="text-sm font-medium text-app-text">{info.name}</div>
+                    <div className="text-[10px] text-app-muted">{info.type}</div>
                   </div>
-                );
-              })}
-            </div>
+                  <div className={`col-span-3 text-right font-medium ${pctA === 0 ? 'text-app-muted/50' : 'text-app-text'}`}>
+                    {pctA > 0 ? `${pctA.toFixed(2)}%` : '-'}
+                  </div>
+                  <div className={`col-span-3 text-right font-medium border-l border-app-border px-2 ${pctB === 0 ? 'text-app-muted/50' : 'text-app-text'}`}>
+                    {pctB > 0 ? `${pctB.toFixed(2)}%` : '-'}
+                  </div>
+                  <div className="col-span-2 text-right flex justify-end">
+                    {diff !== 0 ? (
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${diff > 0 ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-600'}`}>
+                        {diff > 0 ? '+' : ''}{diff.toFixed(2)}%
+                      </span>
+                    ) : (
+                      <span className="text-xs text-app-muted">—</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -1503,7 +1531,7 @@ if (viewState === 'compare' && compareIds.length === 2) {
           {isSelectionMode && selectedIds.length > 0 && (
             <button
               onClick={deleteSelectedFormulas}
-              className="flex items-center gap-2 bg-red-500/10 text-red-600 px-4 py-2 rounded-md hover:bg-red-500/20 transition-colors"
+              className="flex items-center gap-2 bg-red-500/10 text-red-600 px-4 py-2 rounded-md hover:bg-red-500/20 transition-colors shadow-sm"
             >
               <Trash2 size={20} />
               <span className="hidden sm:inline">Delete Selected ({selectedIds.length})</span>
@@ -1512,13 +1540,28 @@ if (viewState === 'compare' && compareIds.length === 2) {
           {isSelectionMode && (
             <button
               onClick={() => {
-                setIsSelectionMode(false);
-                setSelectedIds([]);
+                const totalFormulas = formulas.filter(f => f.type !== 'accord').length;
+                if (selectedIds.length === totalFormulas) {
+                  setSelectedIds([]);
+                } else {
+                  setSelectedIds(formulas.filter(f => f.type !== 'accord').map(f => f.id));
+                }
               }}
-              className="flex items-center gap-2 bg-app-bg text-app-text px-4 py-2 rounded-md hover:bg-app-card border border-app-border transition-colors"
+              className="flex items-center gap-2 bg-app-card text-app-text px-4 py-2 rounded-md hover:bg-app-bg border border-app-border transition-colors shadow-sm whitespace-nowrap"
             >
-              Cancel Selection
+              {selectedIds.length === formulas.filter(f => f.type !== 'accord').length ? 'Deselect All' : 'Select All'}
             </button>
+          )}
+          {isSelectionMode && (
+             <button
+               onClick={() => {
+                 setIsSelectionMode(false);
+                 setSelectedIds([]);
+               }}
+               className="flex items-center gap-2 bg-app-bg text-app-text px-4 py-2 rounded-md hover:bg-app-card border border-app-border transition-colors shadow-sm"
+             >
+               Cancel
+             </button>
           )}
           <div className="flex items-center gap-2">
             <button

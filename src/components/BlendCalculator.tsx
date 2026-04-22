@@ -57,7 +57,7 @@ export default function BlendCalculator({ formulas, fragrances, rawMaterials = [
   };
 
   const handleSaveToHistory = () => {
-    if (!selectedFormula || !capacityMl || (!selectedFormula.isHybrid && !selectedFragranceId)) return;
+    if (!selectedFormula || !capacityMl) return;
 
     const newEntry: CalculatorHistoryEntry = {
       id: crypto.randomUUID(),
@@ -65,7 +65,7 @@ export default function BlendCalculator({ formulas, fragrances, rawMaterials = [
       formulaId: selectedFormula.id,
       formulaName: selectedFormula.name,
       fragranceId: selectedFormula.isHybrid ? undefined : selectedFragranceId,
-      fragranceName: selectedFormula.isHybrid ? undefined : selectedFragrance?.name,
+      fragranceName: selectedFormula.isHybrid ? undefined : (selectedFragrance?.name || 'Fragrance Oil'),
       capacityMl: Number(capacityMl),
       results: []
     };
@@ -73,7 +73,7 @@ export default function BlendCalculator({ formulas, fragrances, rawMaterials = [
     (selectedFormula.fragranceOils || []).forEach(oil => {
       newEntry.results.push({
         type: 'fragrance_oil',
-        name: selectedFormula.isHybrid ? getFragranceName(oil.fragranceId) : (selectedFragrance?.name || 'Unknown'),
+        name: selectedFormula.isHybrid ? getFragranceName(oil.fragranceId) : (selectedFragrance?.name || 'Fragrance Oil'),
         percentage: oil.percentage,
         requiredMl: (Number(oil.percentage) / 100) * Number(capacityMl)
       });
@@ -161,15 +161,15 @@ export default function BlendCalculator({ formulas, fragrances, rawMaterials = [
             </select>
           </div>
 
-          {!selectedFormula?.isHybrid && (
+          {!selectedFormula?.isHybrid && selectedFormula?.type !== 'accord' && (
             <div>
-              <label className="block text-sm font-medium text-app-muted mb-1">Select Fragrance</label>
+              <label className="block text-sm font-medium text-app-muted mb-1">Select Fragrance (Optional)</label>
               <select
                 value={selectedFragranceId}
                 onChange={(e) => setSelectedFragranceId(e.target.value)}
                 className="w-full px-3 py-2 bg-app-bg border border-app-border text-app-text rounded-md focus:ring-app-accent focus:border-app-accent"
               >
-                <option value="">-- Choose a Fragrance --</option>
+                <option value="">-- Choose a Fragrance (Optional) --</option>
                 {fragrances.map((f) => (
                   <option key={f.id} value={f.id}>
                     {f.name}
@@ -200,7 +200,7 @@ export default function BlendCalculator({ formulas, fragrances, rawMaterials = [
         <div className="lg:col-span-2 bg-app-card rounded-lg shadow border border-app-border p-6 flex flex-col">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold text-app-text">Required Materials</h3>
-            {selectedFormula && capacityMl && (selectedFormula.isHybrid || selectedFragranceId) && (
+            {selectedFormula && capacityMl && (
               <button
                 onClick={handleSaveToHistory}
                 className="flex items-center gap-2 bg-app-accent/10 text-app-accent px-3 py-1.5 rounded-md hover:bg-app-accent/20 transition-colors text-sm font-medium"
@@ -211,9 +211,9 @@ export default function BlendCalculator({ formulas, fragrances, rawMaterials = [
             )}
           </div>
           
-          {!selectedFormula || !capacityMl || (!selectedFormula.isHybrid && !selectedFragranceId) ? (
+          {!selectedFormula || !capacityMl ? (
             <div className="flex-1 flex items-center justify-center text-center py-12 text-app-muted italic">
-              Select a formula, {selectedFormula && !selectedFormula.isHybrid ? 'fragrance, ' : ''}and enter capacity to see the required materials.
+              Select a formula and enter capacity to see the required materials.
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -222,38 +222,74 @@ export default function BlendCalculator({ formulas, fragrances, rawMaterials = [
                   <tr className="border-b-2 border-app-border">
                     <th className="py-3 px-4 font-semibold text-app-text">Type</th>
                     <th className="py-3 px-4 font-semibold text-app-text">Material</th>
-                    <th className="py-3 px-4 font-semibold text-app-text text-right">Percentage</th>
-                    <th className="py-3 px-4 font-semibold text-app-text text-right">Required (mL)</th>
+                    <th className="py-3 px-4 font-semibold text-app-text text-right">Percentage / Amount</th>
+                    <th className="py-3 px-4 font-semibold text-app-text text-right">Required (mL/g)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-app-border">
                   {(selectedFormula.fragranceOils || []).map((oil) => {
-                    const requiredMl = (Number(oil.percentage) / 100) * Number(capacityMl);
+                    const pct = Number(oil.percentage) || 0;
+                    const requiredMl = selectedFormula.type === 'accord' ? 0 : (pct / 100) * Number(capacityMl);
+                    if (selectedFormula.type === 'accord') return null; // Accords usually don't use oils directly with percentage in calculation like this if it's strictly an accord, but we'll show just in case
                     return (
                       <tr key={oil.id} className="hover:bg-app-bg transition-colors">
                         <td className="py-3 px-4 text-app-muted text-sm">Fragrance Oil</td>
                         <td className="py-3 px-4 text-app-text">
-                          {selectedFormula.isHybrid ? getFragranceName(oil.fragranceId) : selectedFragrance?.name}
+                          {selectedFormula.isHybrid ? getFragranceName(oil.fragranceId) : (selectedFragrance?.name || 'Fragrance Oil')}
                         </td>
-                        <td className="py-3 px-4 text-app-muted text-right">{oil.percentage}%</td>
+                        <td className="py-3 px-4 text-app-muted text-right">{pct}%</td>
                         <td className="py-3 px-4 font-medium text-app-accent text-right">
                           {requiredMl.toFixed(2)} mL
                         </td>
                       </tr>
                     );
                   })}
-                  {(selectedFormula.materials || []).map((material) => {
-                    const requiredMl = (Number(material.percentage) / 100) * Number(capacityMl);
+                  {/* Accords handler */}
+                  {(selectedFormula.accords || []).map((acc) => {
+                    if (selectedFormula.type !== 'accord') return null;
+                    const amt = Number(acc.amount) || 0;
+                    const ratio = amt / (selectedFormula.accordCapacity || 100);
+                    const requiredMl = ratio * Number(capacityMl);
                     return (
-                      <tr key={material.id} className="hover:bg-app-bg transition-colors">
-                        <td className="py-3 px-4 text-app-muted text-sm">Raw Material</td>
-                        <td className="py-3 px-4 text-app-text">{getRawMaterialName(material.rawMaterialId)}</td>
-                        <td className="py-3 px-4 text-app-muted text-right">{material.percentage}%</td>
+                      <tr key={acc.id} className="hover:bg-app-bg transition-colors">
+                        <td className="py-3 px-4 text-app-muted text-sm">Accord</td>
+                        <td className="py-3 px-4 text-app-text">{formulas.find(f => f.id === acc.accordId)?.name || 'Unknown Accord'}</td>
+                        <td className="py-3 px-4 text-app-muted text-right">{amt} {acc.unit}</td>
                         <td className="py-3 px-4 font-medium text-app-accent text-right">
-                          {requiredMl.toFixed(2)} mL
+                          {requiredMl.toFixed(2)} {selectedFormula.accordCapacityUnit || 'g'}
                         </td>
                       </tr>
                     );
+                  })}
+                  {(selectedFormula.materials || []).map((material) => {
+                    if (selectedFormula.type === 'accord') {
+                        const amt = Number(material.amount) || 0;
+                        const ratio = amt / (selectedFormula.accordCapacity || 100);
+                        const requiredMl = ratio * Number(capacityMl);
+                        return (
+                          <tr key={material.id} className="hover:bg-app-bg transition-colors">
+                            <td className="py-3 px-4 text-app-muted text-sm">Raw Material</td>
+                            <td className="py-3 px-4 text-app-text">{getRawMaterialName(material.rawMaterialId)}</td>
+                            <td className="py-3 px-4 text-app-muted text-right">{amt} {material.unit}</td>
+                            <td className="py-3 px-4 font-medium text-app-accent text-right">
+                              {requiredMl.toFixed(2)} {selectedFormula.accordCapacityUnit || 'g'}
+                            </td>
+                          </tr>
+                        );
+                    } else {
+                        const pct = Number(material.percentage) || 0;
+                        const requiredMl = (pct / 100) * Number(capacityMl);
+                        return (
+                          <tr key={material.id} className="hover:bg-app-bg transition-colors">
+                            <td className="py-3 px-4 text-app-muted text-sm">Raw Material</td>
+                            <td className="py-3 px-4 text-app-text">{getRawMaterialName(material.rawMaterialId)}</td>
+                            <td className="py-3 px-4 text-app-muted text-right">{pct}%</td>
+                            <td className="py-3 px-4 font-medium text-app-accent text-right">
+                              {requiredMl.toFixed(2)} mL
+                            </td>
+                          </tr>
+                        );
+                    }
                   })}
                   {(selectedFormula.alcohols || []).map((alcohol) => {
                     const requiredMl = (Number(alcohol.percentage) / 100) * Number(capacityMl);

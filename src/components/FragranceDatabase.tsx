@@ -1094,7 +1094,7 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
           {isSelectionMode && selectedIds.length > 0 && (
             <button
               onClick={deleteSelectedFragrances}
-              className="flex items-center gap-2 bg-red-500/10 text-red-600 px-4 py-2 rounded-md hover:bg-red-500/20 transition-colors"
+              className="flex items-center gap-2 bg-red-500/10 text-red-600 px-4 py-2 rounded-md hover:bg-red-500/20 transition-colors shadow-sm"
             >
               <Trash2 size={20} />
               <span className="hidden sm:inline">Delete Selected ({selectedIds.length})</span>
@@ -1103,12 +1103,26 @@ export default function FragranceDatabase({ fragrances, setFragrances, userTheme
           {isSelectionMode && (
             <button
               onClick={() => {
+                if (selectedIds.length === filteredFragrances.length) {
+                  setSelectedIds([]);
+                } else {
+                  setSelectedIds(filteredFragrances.map(f => f.id));
+                }
+              }}
+              className="flex items-center gap-2 bg-app-card text-app-text px-4 py-2 rounded-md hover:bg-app-bg border border-app-border transition-colors shadow-sm whitespace-nowrap"
+            >
+              {selectedIds.length === filteredFragrances.length ? 'Deselect All' : 'Select All'}
+            </button>
+          )}
+          {isSelectionMode && (
+            <button
+              onClick={() => {
                 setIsSelectionMode(false);
                 setSelectedIds([]);
               }}
-              className="flex items-center gap-2 bg-app-bg text-app-text px-4 py-2 rounded-md hover:bg-app-card border border-app-border transition-colors"
+              className="flex items-center gap-2 bg-app-bg text-app-text px-4 py-2 rounded-md hover:bg-app-card border border-app-border transition-colors shadow-sm"
             >
-              Cancel Selection
+              Cancel
             </button>
           )}
           <div className="relative flex-1 md:w-64">

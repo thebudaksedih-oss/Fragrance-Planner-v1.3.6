@@ -3,6 +3,7 @@ import { Plus, Trash2, Search, Save, X, ChevronLeft, MoreVertical, Copy, CheckSq
 import { Equipment } from '../types';
 import { useConfirm } from '../hooks/useConfirm';
 import TutorialModal from './TutorialModal';
+import ImportEquipmentModal from './ImportEquipmentModal';
 
 const generateId = () => {
   try {
@@ -28,6 +29,7 @@ export default function EquipmentList({ equipments, setEquipments }: Props) {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const { confirm, ConfirmModal } = useConfirm();
 
   const tutorialSteps = [
@@ -141,6 +143,10 @@ export default function EquipmentList({ equipments, setEquipments }: Props) {
       setViewState('list');
       setEditingEquipment(null);
     }
+  };
+
+  const handleImportEquipment = (importedEquipments: Equipment[]) => {
+    setEquipments(prev => [...prev, ...importedEquipments]);
   };
 
   const filteredEquipments = equipments.filter((equipment) => {
@@ -286,6 +292,12 @@ export default function EquipmentList({ equipments, setEquipments }: Props) {
           ) : (
             <>
               <button
+                onClick={() => setShowImportModal(true)}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-app-text bg-app-card border border-app-border rounded-md hover:bg-app-bg transition-colors shadow-sm whitespace-nowrap"
+              >
+                Import Range
+              </button>
+              <button
                 onClick={() => setIsSelectionMode(true)}
                 className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-app-text bg-app-bg border border-app-border rounded-md hover:bg-app-card transition-colors"
               >
@@ -430,6 +442,13 @@ export default function EquipmentList({ equipments, setEquipments }: Props) {
         )}
       </div>
       {ConfirmModal}
+
+      <ImportEquipmentModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImport={handleImportEquipment}
+        existingEquipments={equipments}
+      />
 
       <TutorialModal 
         isOpen={showTutorial}
